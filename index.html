@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>City4All Accessible Wall</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: #f1f5f9; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" data-presets="react">
+    const { useCallback, useEffect, useMemo, useRef, useState } = React;
+
+    /* ---------------------------------------------------------------------- */
+    /*  CONFIG                                                                */
+    /* ---------------------------------------------------------------------- */
+
+    // Δοκιμάζονται με τη σειρά. Το πρώτο που δουλεύει χρησιμοποιείται.
+    const LAYER_URLS = [
+      "https://services4.arcgis.com/D1oWZQPmnyTvHNmk/arcgis/rest/services/survey123_ccd6ad59f5824a6bad1a1700fa0a9197_results/FeatureServer/0",
+      "https://services4.arcgis.com/D1oWZQPmnyTvHNmk/arcgis/rest/services/survey123_ccd6ad59f5824a6bad1a1700fa0a9197/FeatureServer/0",
+    ];
+
+    // Μόνο αν το layer ΔΕΝ είναι δημόσιο.
+    const ARCGIS_TOKEN = "";
+
+    const BP_URL = "https://www.city4all.org/pages/city4allbp";
+    const MAX_IMAGES = 3;
+    const SLIDE_INTERVAL_MS = 3000;
+
+    const withToken = (url) =>
+      ARCGIS_TOKEN
+        ? `${url}${url.includes("?") ? "&" : "?"}token=${encodeURIComponent(ARCGIS_TOKEN)}`
+        : url;
+
+    /* ---------------------------------------------------------------------- */
+    /*  DATA LAYER                                                            */
+    /* ---------------------------------------------------------------------- */
+
+    async function fetchJson(url, signal) {
+      const res = await fetch(url, { signal });
+      if (!res.ok) throw new Error(`Request failed (${res.status})`);
+      const data = await res.json();
+      // Το ArcGIS συχνά επιστρέφει HTTP 200 με error μέσα στο JSON
+      if (data && data.error) {
+        throw new Error(data.error.message || "ArcGIS returned an error");
+      }
+      return data;
+    }
+
+    // Βρίσκει πεδίο χωρίς να μετράει πεζά/κεφαλαία (π.χ. Business_Name = business_name)
+    function getField(attrs, name) {
+      if (name in attrs) return attrs[name];
+      const key = Object.keys(attrs).find((k) => k.toLowerCase() === name.toLowerCase());
+      return key ? attrs[key] : undefined;
+    }
+
+    async function fetchImageUrls(layerUrl, objectId, signal) {
+      try {
+        const base = `${layerUrl}/${objectId}/attachments`;
+        const data = await fetchJson(withToken(`${base}?f=json`), signal);
+        return (data.attachmentInfos || [])
+          .filter((a) => (a.contentType || "").toLowerCase().startsWith("image/"))
+          .slice(0, MAX_IMAGES)
+          .map((a) => withToken(`${base}/${a.id}`));
+      } catch (err) {
+        if (err.name === "AbortError") throw err;
+        return []; // ένα αποτυχημένο attachment δεν χαλάει όλο το wall
+      }
+    }
+
+    async function loadFromLayer(layerUrl, signal) {
+      const data = await fetchJson(
+        withToken(`${layerUrl}/query?where=1%3D1&outFields=*&f=json`),
+        signal
+      );
+
+      const oidField =
+        data.objectIdFieldName ||
+        (data.fields || []).find((f) => f.type === "esriFieldTypeOID")?.name ||
+        "OBJECTID";
+
+      const records = (data.features || [])
+        .map((f) => f.attributes || {})
+        .filter((a) => a[oidField] != null && getField(a, "business_name"));
+
+      return Promise.all(
+        records.map(async (attrs) => {
+          const objectId = attrs[oidField];
+          const images = await fetchImageUrls(layerUrl, objectId, signal);
+          return {
+            id: objectId,
+            name: getField(attrs, "business_name"),
+            tagline: getField(attrs, "tagline") || "",
+            description: getField(attrs, "description") || "",
+            accessibility: getField(attrs, "accessibility_details") || "",
+            xrLink: getField(attrs, "xr_link") || "",
+            images,
+          };
+        })
+      );
+    }
+
+    async function fetchBusinesses(signal) {
+      let lastError = null;
+      let reachedALayer = false;
+
+      for (const layerUrl of LAYER_URLS) {
+        try {
+          const items = await loadFromLayer(layerUrl, signal);
+          reachedALayer = true;
+          if (items.length > 0) return items;
+        } catch (err) {
+          if (err.name === "AbortError") throw err;
+          console.warn("Layer failed:", layerUrl, err);
+          lastError = err;
+        }
+      }
+
+      if (!reachedALayer && lastError) throw lastError;
+      return [];
+    }
+
+    /* ---------------------------------------------------------------------- */
+    /*  HOOKS                                                                 */
+    /* ---------------------------------------------------------------------- */
+
+    function useBusinesses() {
+      const [state, setState] = useState({ status: "loading", data: [], error: null });
+      const [attempt, setAttempt] = useState(0);
+
+      useEffect(() => {
+        const controller = new AbortController();
+        setState({ status: "loading", data: [], error: null });
+
+        fetchBusinesses(controller.signal)
+          .then((data) => setState({ status: "success", data, error: null }))
+          .catch((err) => {
+            if (err.name === "AbortError") return;
+            console.error(err);
+            setState({
+              status: "error",
+              data: [],
+              error: err.message || "Something went wrong",
+            });
+          });
+
+        return () => controller.abort();
+      }, [attempt]);
+
+      const retry = useCallback(() => setAttempt((n) => n + 1), []);
+      return { ...state, retry };
+    }
+
+    /* ---------------------------------------------------------------------- */
+    /*  SLIDESHOW                                                             */
+    /* ---------------------------------------------------------------------- */
+
+    function Slideshow({ images, alt, className = "", initialDelay = 0 }) {
+      const [index, setIndex] = useState(0);
+      const timer = useRef(null);
+
+      useEffect(() => {
+        if (images.length < 2) return undefined;
+        // μικρό stagger ώστε όλες οι κάρτες να μην αλλάζουν ταυτόχρονα
+        const start = setTimeout(() => {
+          timer.current = setInterval(
+            () => setIndex((i) => (i + 1) % images.length),
+            SLIDE_INTERVAL_MS
+          );
+        }, initialDelay);
+        return () => {
+          clearTimeout(start);
+          clearInterval(timer.current);
+        };
+      }, [images.length, initialDelay]);
+
+      if (images.length === 0) {
+        return (
+          <div
+            className={`flex items-center justify-center bg-gradient-to-br from-indigo-100 to-sky-100 text-indigo-400 ${className}`}
+            aria-label={`${alt} (no photos yet)`}
+          >
+            <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M3.75 19.5h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zM8.25 9.75a1.125 1.125 0 100-2.25 1.125 1.125 0 000 2.25zM21 15l-5.16-5.16a2.25 2.25 0 00-3.18 0L3 18.75"
+              />
+            </svg>
+          </div>
+        );
+      }
+
+      return (
+        <div className={`relative overflow-hidden bg-slate-200 ${className}`}>
+          {images.map((src, i) => (
+            <img
+              key={src}
+              src={src}
+              alt={i === index ? alt : ""}
+              loading="lazy"
+              draggable={false}
+              className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 ease-in-out ${
+                i === index ? "opacity-100" : "opacity-0"
+              }`}
+            />
+          ))}
+        </div>
+      );
+    }
+
+    /* ---------------------------------------------------------------------- */
+    /*  CARDS                                                                 */
+    /* ---------------------------------------------------------------------- */
+
+    function BusinessCard({ business, onOpen, position }) {
+      return (
+        <button
+          type="button"
+          onClick={() => onOpen(business)}
+          className="group flex h-40 w-[22rem] shrink-0 snap-start overflow-hidden rounded-2xl bg-white text-left shadow-md ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus-visible:ring-4 focus-visible:ring-indigo-400"
+          aria-label={`Open details for ${business.name}`}
+        >
+          <Slideshow
+            images={business.images}
+            alt={`${business.name} photo`}
+            initialDelay={position * 400}
+            className="h-full w-36 shrink-0"
+          />
+          <div className="flex min-w-0 flex-1 flex-col justify-between p-4">
+            <div>
+              <h3 className="truncate text-base font-bold text-slate-900">{business.name}</h3>
+              {business.tagline && (
+                <p className="mt-1 line-clamp-2 text-sm text-slate-600">{business.tagline}</p>
+              )}
+            </div>
+            <span className="inline-flex items-center gap-1 text-sm font-semibold text-indigo-600 group-hover:text-indigo-800">
+              Explore in 3D
+              <svg className="h-4 w-4 transition group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+              </svg>
+            </span>
+          </div>
+        </button>
+      );
+    }
+
+    function AddBusinessCard() {
+      return (
+        <a
+          href={BP_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group relative flex h-40 w-[22rem] shrink-0 snap-end flex-col justify-between overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 p-5 text-white shadow-lg transition hover:-translate-y-0.5 hover:shadow-2xl focus:outline-none focus-visible:ring-4 focus-visible:ring-fuchsia-300"
+        >
+          <div className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/10" />
+          <div className="pointer-events-none absolute -bottom-10 right-10 h-24 w-24 rounded-full bg-white/10" />
+          <div className="relative">
+            <span className="inline-block rounded-full bg-white/20 px-3 py-0.5 text-xs font-semibold uppercase tracking-wider">
+              For businesses
+            </span>
+            <h3 className="mt-2 text-xl font-extrabold leading-tight">Add your business to the wall</h3>
+          </div>
+          <span className="relative inline-flex items-center gap-2 text-sm font-semibold">
+            View business plans
+            <svg className="h-4 w-4 transition group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+            </svg>
+          </span>
+        </a>
+      );
+    }
+
+    /* ---------------------------------------------------------------------- */
+    /*  MODAL                                                                 */
+    /* ---------------------------------------------------------------------- */
+
+    function isSafeUrl(url) {
+      try {
+        return new URL(url).protocol === "https:";
+      } catch (e) {
+        return false;
+      }
+    }
+
+    function BusinessModal({ business, onClose }) {
+      const closeRef = useRef(null);
+
+      useEffect(() => {
+        const onKey = (e) => e.key === "Escape" && onClose();
+        document.addEventListener("keydown", onKey);
+        const prevOverflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        if (closeRef.current) closeRef.current.focus();
+        return () => {
+          document.removeEventListener("keydown", onKey);
+          document.body.style.overflow = prevOverflow;
+        };
+      }, [onClose]);
+
+      const hasXr = business.xrLink && isSafeUrl(business.xrLink);
+
+      return (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-3 backdrop-blur-sm sm:p-6"
+          onClick={onClose}
+          role="presentation"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="c4a-modal-title"
+            onClick={(e) => e.stopPropagation()}
+            className="relative flex max-h-full w-full max-w-6xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl lg:flex-row"
+          >
+            <button
+              ref={closeRef}
+              type="button"
+              onClick={onClose}
+              aria-label="Close details"
+              className="absolute right-3 top-3 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow ring-1 ring-slate-200 transition hover:bg-white focus:outline-none focus-visible:ring-4 focus-visible:ring-indigo-400"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            {/* 3D / XR viewport */}
+            <div className="relative h-72 w-full shrink-0 bg-slate-900 sm:h-96 lg:h-auto lg:min-h-[32rem] lg:w-3/5">
+              {hasXr ? (
+                <iframe
+                  src={business.xrLink}
+                  title={`${business.name} interactive 3D space`}
+                  className="absolute inset-0 h-full w-full border-0"
+                  allow="xr-spatial-tracking; fullscreen; accelerometer; gyroscope; magnetometer; autoplay"
+                  allowFullScreen
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+              ) : (
+                <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-6 text-center text-slate-300">
+                  <svg className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" />
+                  </svg>
+                  <p className="text-sm">The 3D space for this business isn't available yet.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Details */}
+            <div className="flex-1 overflow-y-auto p-6 sm:p-8">
+              <h2 id="c4a-modal-title" className="pr-10 text-2xl font-extrabold text-slate-900 sm:text-3xl">
+                {business.name}
+              </h2>
+              {business.tagline && (
+                <p className="mt-1 text-base font-medium text-indigo-600">{business.tagline}</p>
+              )}
+
+              {business.description && (
+                <section className="mt-6">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">About</h3>
+                  <p className="mt-2 whitespace-pre-line leading-relaxed text-slate-700">
+                    {business.description}
+                  </p>
+                </section>
+              )}
+
+              {business.accessibility && (
+                <section className="mt-6 rounded-2xl bg-emerald-50 p-4 ring-1 ring-emerald-200">
+                  <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-700">
+                    <span aria-hidden="true">♿</span> Accessibility details
+                  </h3>
+                  <p className="mt-2 whitespace-pre-line leading-relaxed text-emerald-900">
+                    {business.accessibility}
+                  </p>
+                </section>
+              )}
+
+              {hasXr && (
+                <a
+                  href={business.xrLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-indigo-600 underline-offset-4 hover:underline"
+                >
+                  Open 3D space in a new tab ↗
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* ---------------------------------------------------------------------- */
+    /*  STATES                                                                */
+    /* ---------------------------------------------------------------------- */
+
+    function LoadingRow() {
+      return (
+        <div className="flex gap-5 overflow-hidden px-4 sm:px-8" role="status" aria-live="polite">
+          <span className="sr-only">Loading businesses…</span>
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="flex h-40 w-[22rem] shrink-0 animate-pulse overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200">
+              <div className="h-full w-36 bg-slate-200" />
+              <div className="flex-1 space-y-3 p-4">
+                <div className="h-4 w-3/4 rounded bg-slate-200" />
+                <div className="h-3 w-full rounded bg-slate-100" />
+                <div className="h-3 w-2/3 rounded bg-slate-100" />
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    function ErrorState({ message, onRetry }) {
+      return (
+        <div role="alert" className="mx-4 flex flex-col items-start gap-3 rounded-2xl bg-red-50 p-6 ring-1 ring-red-200 sm:mx-8">
+          <p className="font-semibold text-red-800">We couldn't load the Accessible Wall.</p>
+          <p className="text-sm text-red-700">{message}</p>
+          <button
+            type="button"
+            onClick={onRetry}
+            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-red-300"
+          >
+            Try again
+          </button>
+        </div>
+      );
+    }
+
+    /* ---------------------------------------------------------------------- */
+    /*  MAIN COMPONENT                                                        */
+    /* ---------------------------------------------------------------------- */
+
+    function City4AllAccessibleWall() {
+      const { status, data, error, retry } = useBusinesses();
+      const [selected, setSelected] = useState(null);
+      const handleClose = useCallback(() => setSelected(null), []);
+      const businesses = useMemo(() => data, [data]);
+
+      return (
+        <section
+          aria-labelledby="c4a-wall-title"
+          className="w-full bg-gradient-to-b from-slate-50 to-slate-100 py-10"
+        >
+          <header className="mb-6 px-4 sm:px-8">
+            <h2 id="c4a-wall-title" className="text-2xl font-extrabold text-slate-900 sm:text-3xl">
+              City4All Accessible Wall
+            </h2>
+            <p className="mt-1 max-w-2xl text-slate-600">
+              Explore accessible businesses in immersive 3D. Tap a card to step inside.
+            </p>
+          </header>
+
+          {status === "loading" && <LoadingRow />}
+
+          {status === "error" && <ErrorState message={error} onRetry={retry} />}
+
+          {status === "success" && (
+            <>
+              {businesses.length === 0 && (
+                <p className="px-4 pb-4 text-slate-600 sm:px-8">
+                  No businesses are on the wall yet — be the first!
+                </p>
+              )}
+              <div
+                className="flex snap-x snap-proximity gap-5 overflow-x-auto scroll-smooth px-4 pb-4 sm:px-8"
+                style={{ overflowX: "auto", scrollBehavior: "smooth" }}
+                tabIndex={0}
+                aria-label="Accessible businesses carousel"
+              >
+                {businesses.map((b, i) => (
+                  <BusinessCard key={b.id} business={b} onOpen={setSelected} position={i} />
+                ))}
+                <AddBusinessCard />
+                <div className="w-4 shrink-0 sm:w-8" aria-hidden="true" />
+              </div>
+            </>
+          )}
+
+          {selected && <BusinessModal business={selected} onClose={handleClose} />}
+        </section>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<City4AllAccessibleWall />);
+  </script>
+</body>
+</html>
