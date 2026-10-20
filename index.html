@@ -106,6 +106,15 @@
       -webkit-box-orient: vertical;
       overflow: hidden;
     }
+    .card__location {
+      margin: .15rem 0 0;
+      font-size: .8rem;
+      font-weight: 600;
+      color: var(--indigo-600);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
     .card__cta { font-size: .875rem; font-weight: 600; color: var(--indigo-600); }
     .card:hover .card__cta { color: #3730a3; }
 
@@ -315,17 +324,57 @@
       color: var(--slate-500);
     }
     .modal__section p { margin: .5rem 0 0; line-height: 1.65; white-space: pre-line; color: var(--slate-700); }
+    /* Προσβασιμότητα: κάρτες-χαρακτηριστικά, χωρίς bullets και emoji */
     .modal__section--access {
-      padding: 1rem 1.25rem;
+      padding: 1.1rem 1.25rem 1.25rem;
       border-radius: 1rem;
-      background: #ecfdf5;
-      box-shadow: 0 0 0 1px #a7f3d0;
+      background: #f0fdf4;
+      box-shadow: 0 0 0 1px #bbf7d0;
     }
     .modal__section--access h3 { color: #047857; }
-    .modal__section--access p,
-    .modal__section--access li { color: #064e3b; }
-    .access-list { margin: .6rem 0 0; padding-left: 1.2rem; line-height: 1.65; }
-    .access-list li { margin-top: .25rem; }
+    .access__head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: .75rem;
+    }
+    .access__count {
+      padding: .1rem .65rem;
+      border-radius: 999px;
+      background: #d1fae5;
+      color: #065f46;
+      font-size: .75rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .access-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+      gap: .6rem;
+      margin: .85rem 0 0;
+      padding: 0;
+      list-style: none;
+    }
+    .access-item {
+      padding: .7rem .95rem;
+      border-radius: .75rem;
+      background: #fff;
+      box-shadow: inset 4px 0 0 #10b981, 0 0 0 1px #d1fae5;
+      color: #064e3b;
+      font-size: .9rem;
+      font-weight: 500;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+    .access-item--wide { grid-column: 1 / -1; }
+
+    .link-inline {
+      display: inline-block;
+      margin-top: .5rem;
+      font-size: .875rem;
+      font-weight: 600;
+      color: var(--indigo-600);
+    }
 
     .btn-link {
       display: inline-block;
@@ -402,8 +451,17 @@
             <p id="c4a-about-text"></p>
           </section>
 
+          <section id="c4a-location" class="modal__section" hidden>
+            <h3>Τοποθεσία</h3>
+            <p id="c4a-location-text"></p>
+            <a id="c4a-map" class="link-inline" target="_blank" rel="noopener noreferrer" hidden>Προβολή στον χάρτη &#8599;</a>
+          </section>
+
           <section id="c4a-access" class="modal__section modal__section--access" hidden>
-            <h3><span aria-hidden="true">&#9855;</span> Προσβασιμότητα</h3>
+            <div class="access__head">
+              <h3>Προσβασιμότητα</h3>
+              <span id="c4a-access-count" class="access__count"></span>
+            </div>
             <div id="c4a-access-body"></div>
           </section>
 
@@ -427,6 +485,6 @@
     </div>
   </div>
 
-  <script src="wall.js?v=2" defer></script>
+  <script src="wall.js?v=3" defer></script>
 </body>
 </html>
