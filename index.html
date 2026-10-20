@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>City4All Accessible Wall</title>
+
+  <!-- Tailwind CSS (CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- React 18 + ReactDOM (CDN) -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+  <!-- Babel (μεταγλώττιση JSX στον browser) -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: #f1f5f9; }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <p style="padding:2rem;color:#475569">Φόρτωση…</p>
+  </div>
+
+  <script>
+    /* ====================================================================== */
+    /*  ΡΥΘΜΙΣΗ: το όνομα του αρχείου που ΕΧΕΙΣ ΗΔΗ ανεβάσει στο repository.   */
+    /*  Πρέπει να είναι στον ίδιο φάκελο με αυτό το index.html.               */
+    /*  Παράδειγμα: "City4AllAccessibleWall.jsx" ή "wall.js"                  */
+    /* ====================================================================== */
+    const COMPONENT_FILE = "AccessibleWall.jsx";
+
+    (async function () {
+      const root = document.getElementById("root");
+      const showError = (msg) => {
+        root.innerHTML =
+          '<div style="margin:2rem;padding:1.5rem;border-radius:1rem;background:#fef2f2;color:#991b1b;border:1px solid #fecaca;font-family:system-ui">' +
+          "<strong>Δεν φόρτωσε το component.</strong><br><br>" + msg + "</div>";
+      };
+
+      try {
+        // 1. Κατεβάζουμε το υπάρχον αρχείο ως κείμενο (ό,τι κι αν είναι η κατάληξή του)
+        const res = await fetch(COMPONENT_FILE + "?v=" + Date.now());
+        if (!res.ok) {
+          throw new Error("Δεν βρέθηκε το αρχείο «" + COMPONENT_FILE + "» (HTTP " + res.status +
+            "). Άλλαξε το COMPONENT_FILE στο index.html ώστε να ταιριάζει με το όνομα του αρχείου σου.");
+        }
+        let src = await res.text();
+
+        // 2. Αφαιρούμε τα import (το React και τα hooks δίνονται από εδώ)
+        src = src.replace(/^\s*import\s[^;]*?from\s*["'][^"']+["'];?[ \t]*$/gm, "");
+
+        // 3. Αφαιρούμε τα export και βρίσκουμε το όνομα του κύριου component
+        let name = null;
+        src = src.replace(/export\s+default\s+function\s+(\w+)/, function (_, n) {
+          name = n;
+          return "function " + n;
+        });
+        if (!name) {
+          src = src.replace(/export\s+default\s+(\w+)\s*;?/, function (_, n) {
+            name = n;
+            return "";
+          });
+        }
+        src = src.replace(/^export\s+(?=const|let|var|function|class)/gm, "");
+        if (!name) throw new Error("Δεν βρέθηκε `export default` στο αρχείο " + COMPONENT_FILE + ".");
+
+        // 4. Μεταγλώττιση JSX -> JS και δημιουργία του component
+        const wrapped =
+          "(function (React) {\n" +
+          "const { useCallback, useEffect, useMemo, useRef, useState, useLayoutEffect, useContext, useReducer, Fragment } = React;\n" +
+          src + "\nreturn " + name + ";\n})";
+        const compiled = Babel.transform(wrapped, { presets: ["react"] }).code;
+        const factory = (0, eval)(compiled);
+        const Component = factory(React);
+
+        // 5. Εμφάνιση στη σελίδα
+        ReactDOM.createRoot(root).render(React.createElement(Component));
+      } catch (err) {
+        console.error(err);
+        showError(err.message || String(err));
+      }
+    })();
+  </script>
+</body>
+</html>
