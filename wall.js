@@ -1,23 +1,33 @@
-/* City4All Accessible Wall — plain JavaScript, no libraries. */
+/* Τοίχος Προσβασιμότητας City4All — απλή JavaScript, χωρίς βιβλιοθήκες. */
 (function () {
   "use strict";
 
   /* ------------------------------------------------------------------------ */
-  /*  CONFIG                                                                  */
+  /*  ΡΥΘΜΙΣΕΙΣ                                                               */
   /* ------------------------------------------------------------------------ */
 
-  // Tried in order. The first layer that returns businesses is used.
+  // Δοκιμάζονται με τη σειρά. Το πρώτο layer που επιστρέφει επιχειρήσεις χρησιμοποιείται.
   var LAYER_URLS = [
     "https://services4.arcgis.com/D1oWZQPmnyTvHNmk/arcgis/rest/services/survey123_ccd6ad59f5824a6bad1a1700fa0a9197_results/FeatureServer/0",
     "https://services4.arcgis.com/D1oWZQPmnyTvHNmk/arcgis/rest/services/survey123_ccd6ad59f5824a6bad1a1700fa0a9197/FeatureServer/0"
   ];
 
-  // Only needed if the layer is NOT shared publicly.
+  // Χρειάζεται μόνο αν το layer ΔΕΝ είναι δημόσιο.
   var ARCGIS_TOKEN = "";
 
   var BP_URL = "https://www.city4all.org/pages/city4allbp";
   var MAX_IMAGES = 3;
   var SLIDE_INTERVAL_MS = 3000;
+
+  // Τα ονόματα των πεδίων του Survey123. Δοκιμάζεται το πρώτο όνομα που υπάρχει.
+  var FIELD_NAMES = {
+    name: ["business_name"],
+    tagline: ["short_tagline", "tagline"],
+    description: ["detailed_description", "description"],
+    accessibility: ["detailed_accessibility_info", "accessibility_details"],
+    xr: ["city4all_xr_link", "xr_link"],
+    site: ["official_business_link", "business_link", "website"]
+  };
 
   var PLACEHOLDER_SVG =
     '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">' +
@@ -25,14 +35,14 @@
     "</svg>";
 
   /* ------------------------------------------------------------------------ */
-  /*  HELPERS                                                                 */
+  /*  ΒΟΗΘΗΤΙΚΕΣ ΣΥΝΑΡΤΗΣΕΙΣ                                                  */
   /* ------------------------------------------------------------------------ */
 
   function byId(id) {
     return document.getElementById(id);
   }
 
-  // Create an element. Text is always set with textContent (never innerHTML).
+  // Δημιουργεί στοιχείο. Το κείμενο μπαίνει πάντα με textContent (ποτέ innerHTML).
   function make(tag, className, text) {
     var node = document.createElement(tag);
     if (className) node.className = className;
@@ -53,7 +63,22 @@
     }
   }
 
-  // Finds a field ignoring upper/lower case (Business_Name = business_name).
+  // Καθαρίζει έναν σύνδεσμο: "city4all.org" -> "https://city4all.org".
+  // Επιστρέφει κενό αν ο σύνδεσμος δεν είναι ασφαλής (π.χ. javascript:).
+  function normalizeUrl(raw) {
+    var value = String(raw || "").trim();
+    if (!value) return "";
+    if (/^(javascript|data|vbscript|file|blob|about):/i.test(value)) return "";
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(value)) {
+      if (!/^https?:\/\//i.test(value)) return "";
+      value = value.replace(/^http:\/\//i, "https://");
+    } else {
+      value = "https://" + value.replace(/^\/+/, "");
+    }
+    return isHttps(value) ? value : "";
+  }
+
+  // Βρίσκει πεδίο χωρίς να μετράει πεζά/κεφαλαία.
   function getField(attrs, name) {
     if (Object.prototype.hasOwnProperty.call(attrs, name)) return attrs[name];
     var wanted = name.toLowerCase();
@@ -64,17 +89,26 @@
     return undefined;
   }
 
+  // Επιστρέφει την πρώτη μη κενή τιμή από μια λίστα πιθανών ονομάτων πεδίου.
+  function pick(attrs, names) {
+    for (var i = 0; i < names.length; i++) {
+      var value = getField(attrs, names[i]);
+      if (value != null && String(value).trim() !== "") return String(value).trim();
+    }
+    return "";
+  }
+
   /* ------------------------------------------------------------------------ */
-  /*  DATA LAYER (ArcGIS)                                                     */
+  /*  ΔΕΔΟΜΕΝΑ (ArcGIS)                                                       */
   /* ------------------------------------------------------------------------ */
 
   async function fetchJson(url, signal) {
     var res = await fetch(url, { signal: signal });
-    if (!res.ok) throw new Error("Request failed (" + res.status + ")");
+    if (!res.ok) throw new Error("Το αίτημα απέτυχε (" + res.status + ").");
     var data = await res.json();
-    // ArcGIS often answers HTTP 200 with an error object inside the JSON.
+    // Το ArcGIS συχνά απαντά HTTP 200 με σφάλμα μέσα στο JSON.
     if (data && data.error) {
-      throw new Error(data.error.message || "ArcGIS returned an error");
+      throw new Error("Σφάλμα ArcGIS: " + (data.error.message || "άγνωστο σφάλμα") + ".");
     }
     return data;
   }
@@ -93,7 +127,7 @@
         });
     } catch (err) {
       if (err.name === "AbortError") throw err;
-      return []; // one failed attachment lookup must not break the whole wall
+      return []; // μια αποτυχημένη αναζήτηση φωτογραφιών δεν χαλάει όλο τον τοίχο
     }
   }
 
@@ -113,20 +147,21 @@
         return f.attributes || {};
       })
       .filter(function (a) {
-        return a[oidField] != null && getField(a, "business_name");
+        return getField(a, oidField) != null && pick(a, FIELD_NAMES.name);
       });
 
     return Promise.all(
       records.map(async function (attrs) {
-        var objectId = attrs[oidField];
+        var objectId = getField(attrs, oidField);
         var images = await fetchImageUrls(layerUrl, objectId, signal);
         return {
           id: objectId,
-          name: String(getField(attrs, "business_name")),
-          tagline: getField(attrs, "tagline") || "",
-          description: getField(attrs, "description") || "",
-          accessibility: getField(attrs, "accessibility_details") || "",
-          xrLink: getField(attrs, "xr_link") || "",
+          name: pick(attrs, FIELD_NAMES.name),
+          tagline: pick(attrs, FIELD_NAMES.tagline),
+          description: pick(attrs, FIELD_NAMES.description),
+          accessibility: pick(attrs, FIELD_NAMES.accessibility),
+          xrLink: normalizeUrl(pick(attrs, FIELD_NAMES.xr)),
+          siteUrl: normalizeUrl(pick(attrs, FIELD_NAMES.site)),
           images: images
         };
       })
@@ -144,7 +179,7 @@
         if (items.length > 0) return items;
       } catch (err) {
         if (err.name === "AbortError") throw err;
-        console.warn("Layer failed:", LAYER_URLS[i], err);
+        console.warn("Το layer απέτυχε:", LAYER_URLS[i], err);
         lastError = err;
       }
     }
@@ -154,27 +189,28 @@
   }
 
   /* ------------------------------------------------------------------------ */
-  /*  SLIDESHOW (3 images, fade every 3 seconds)                              */
+  /*  SLIDESHOW (μέχρι 3 εικόνες, fade κάθε 3 δευτερόλεπτα)                   */
   /* ------------------------------------------------------------------------ */
 
-  var timers = [];
+  var timers = []; // χρονομετρητές των καρτών
+  var modalTimers = []; // χρονομετρητές της εικόνας του modal
 
-  function clearTimers() {
-    timers.forEach(function (t) {
+  function clearList(list) {
+    list.forEach(function (t) {
       clearTimeout(t);
       clearInterval(t);
     });
-    timers = [];
+    list.length = 0;
   }
 
-  function createSlideshow(images, altText, position) {
+  function createSlideshow(images, altText, position, bag) {
     var wrap = make("div", "slideshow");
 
     if (!images.length) {
       wrap.className += " slideshow--empty";
       wrap.setAttribute("role", "img");
-      wrap.setAttribute("aria-label", altText + " (no photos yet)");
-      wrap.innerHTML = PLACEHOLDER_SVG; // static markup, no user data
+      wrap.setAttribute("aria-label", altText + " (χωρίς φωτογραφίες)");
+      wrap.innerHTML = PLACEHOLDER_SVG; // στατικό markup, χωρίς δεδομένα χρήστη
       return wrap;
     }
 
@@ -200,7 +236,7 @@
       img.alt = i === 0 ? altText : "";
       img.loading = "lazy";
       img.draggable = false;
-      // A broken image is dropped from the rotation instead of showing a gap.
+      // Μια χαλασμένη εικόνα βγαίνει από την εναλλαγή αντί να αφήνει κενό.
       img.addEventListener("error", function () {
         img.remove();
         show(current);
@@ -213,21 +249,21 @@
     });
 
     if (images.length > 1) {
-      // Small stagger so every card doesn't flip at the exact same moment.
+      // Μικρή καθυστέρηση ανά κάρτα, ώστε να μην αλλάζουν όλες ταυτόχρονα.
       var starter = setTimeout(function () {
         var interval = setInterval(function () {
           if (!document.hidden) show(current + 1);
         }, SLIDE_INTERVAL_MS);
-        timers.push(interval);
+        bag.push(interval);
       }, position * 400);
-      timers.push(starter);
+      bag.push(starter);
     }
 
     return wrap;
   }
 
   /* ------------------------------------------------------------------------ */
-  /*  RENDERING                                                               */
+  /*  ΕΜΦΑΝΙΣΗ                                                                */
   /* ------------------------------------------------------------------------ */
 
   var carousel = byId("c4a-carousel");
@@ -237,16 +273,16 @@
   function createBusinessCard(business, position) {
     var card = make("button", "card");
     card.type = "button";
-    card.setAttribute("aria-label", "Open details for " + business.name);
+    card.setAttribute("aria-label", "Άνοιγμα λεπτομερειών για: " + business.name);
 
-    card.appendChild(createSlideshow(business.images, business.name + " photo", position));
+    card.appendChild(createSlideshow(business.images, "Φωτογραφία: " + business.name, position, timers));
 
     var body = make("div", "card__body");
     var top = make("div");
     top.appendChild(make("h3", "card__title", business.name));
     if (business.tagline) top.appendChild(make("p", "card__tagline", business.tagline));
     body.appendChild(top);
-    body.appendChild(make("span", "card__cta", "Explore in 3D →"));
+    body.appendChild(make("span", "card__cta", "Εξερευνήστε την επιχείρηση →"));
     card.appendChild(body);
 
     card.addEventListener("click", function () {
@@ -262,10 +298,10 @@
     link.rel = "noopener noreferrer";
 
     var top = make("div");
-    top.appendChild(make("span", "badge", "For businesses"));
-    top.appendChild(make("h3", "card__title", "Add your business to the wall"));
+    top.appendChild(make("span", "badge", "Για επιχειρήσεις"));
+    top.appendChild(make("h3", "card__title", "Προσθέστε την επιχείρησή σας στον Τοίχο"));
     link.appendChild(top);
-    link.appendChild(make("span", "card__cta", "View business plans →"));
+    link.appendChild(make("span", "card__cta", "Δείτε τα πακέτα για επιχειρήσεις →"));
     return link;
   }
 
@@ -282,7 +318,7 @@
   }
 
   function renderLoading() {
-    clearTimers();
+    clearList(timers);
     statusEl.hidden = true;
     statusEl.textContent = "";
     carousel.hidden = false;
@@ -292,7 +328,7 @@
   }
 
   function renderError(message) {
-    clearTimers();
+    clearList(timers);
     carousel.replaceChildren();
     carousel.hidden = true;
     carousel.removeAttribute("aria-busy");
@@ -300,10 +336,10 @@
     statusEl.className = "status status--error";
     statusEl.setAttribute("role", "alert");
     statusEl.textContent = "";
-    statusEl.appendChild(make("p", "status__title", "We couldn't load the Accessible Wall."));
+    statusEl.appendChild(make("p", "status__title", "Δεν μπορέσαμε να φορτώσουμε τον Τοίχο Προσβασιμότητας."));
     statusEl.appendChild(make("p", "status__msg", message));
 
-    var retry = make("button", "btn-retry", "Try again");
+    var retry = make("button", "btn-retry", "Δοκιμάστε ξανά");
     retry.type = "button";
     retry.addEventListener("click", loadWall);
     statusEl.appendChild(retry);
@@ -311,7 +347,7 @@
   }
 
   function renderBusinesses(items) {
-    clearTimers();
+    clearList(timers);
     carousel.hidden = false;
     carousel.removeAttribute("aria-busy");
     carousel.replaceChildren();
@@ -319,7 +355,7 @@
     if (items.length === 0) {
       statusEl.className = "status status--empty";
       statusEl.removeAttribute("role");
-      statusEl.textContent = "No businesses are on the wall yet — be the first!";
+      statusEl.textContent = "Δεν υπάρχουν ακόμα επιχειρήσεις στον Τοίχο — γίνετε ο πρώτος!";
       statusEl.hidden = false;
     } else {
       statusEl.hidden = true;
@@ -329,7 +365,7 @@
     items.forEach(function (business, i) {
       carousel.appendChild(createBusinessCard(business, i));
     });
-    carousel.appendChild(createAddCard()); // always the last card in the scroll
+    carousel.appendChild(createAddCard()); // πάντα η τελευταία κάρτα στο scroll
   }
 
   async function loadWall() {
@@ -345,55 +381,134 @@
     } catch (err) {
       if (err.name === "AbortError") return;
       console.error(err);
-      renderError(err.message || "Something went wrong.");
+      renderError(err.message || "Κάτι πήγε στραβά.");
     }
   }
 
   /* ------------------------------------------------------------------------ */
-  /*  MODAL                                                                   */
+  /*  MODAL (Επισκόπηση + καρτέλα 3D)                                         */
   /* ------------------------------------------------------------------------ */
 
   var modal = byId("c4a-modal");
   var closeBtn = byId("c4a-close");
-  var frame = byId("c4a-frame");
-  var noXr = byId("c4a-noxr");
+  var banner = byId("c4a-banner");
   var titleEl = byId("c4a-modal-title");
   var taglineEl = byId("c4a-modal-tagline");
+  var tabsEl = byId("c4a-tabs");
+  var tabInfo = byId("c4a-tab-info");
+  var tab3d = byId("c4a-tab-3d");
+  var panelInfo = byId("c4a-panel-info");
+  var panel3d = byId("c4a-panel-3d");
   var aboutSec = byId("c4a-about");
   var aboutText = byId("c4a-about-text");
   var accessSec = byId("c4a-access");
-  var accessText = byId("c4a-access-text");
+  var accessBody = byId("c4a-access-body");
+  var siteLink = byId("c4a-site");
+  var emptyEl = byId("c4a-empty");
+  var frame = byId("c4a-frame");
   var newTab = byId("c4a-newtab");
+
   var lastTrigger = null;
+  var currentBusiness = null;
+  var frameLoaded = false;
+
+  // Πολλές γραμμές -> λίστα σημείων. Μία γραμμή -> παράγραφος.
+  function renderAccessibility(text) {
+    accessBody.textContent = "";
+    var lines = text
+      .split(/\r?\n/)
+      .map(function (line) {
+        return line.replace(/^\s*[-•*·]\s*/, "").trim();
+      })
+      .filter(Boolean);
+
+    if (lines.length > 1) {
+      var list = make("ul", "access-list");
+      lines.forEach(function (line) {
+        list.appendChild(make("li", null, line));
+      });
+      accessBody.appendChild(list);
+    } else if (lines.length === 1) {
+      accessBody.appendChild(make("p", null, lines[0]));
+    }
+  }
+
+  function selectTab(which, moveFocus) {
+    var is3d = which === "3d";
+    tabInfo.setAttribute("aria-selected", String(!is3d));
+    tabInfo.tabIndex = is3d ? -1 : 0;
+    tab3d.setAttribute("aria-selected", String(is3d));
+    tab3d.tabIndex = is3d ? 0 : -1;
+    panelInfo.hidden = is3d;
+    panel3d.hidden = !is3d;
+
+    // Το iframe φορτώνεται μόνο όταν ανοίξει η καρτέλα 3D.
+    if (is3d && currentBusiness && currentBusiness.xrLink && !frameLoaded) {
+      frame.title = "Διαδραστικός 3D χώρος: " + currentBusiness.name;
+      frame.src = currentBusiness.xrLink; // από το πεδίο city4all_xr_link
+      frameLoaded = true;
+    }
+    if (moveFocus) (is3d ? tab3d : tabInfo).focus();
+  }
+
+  tabInfo.addEventListener("click", function () {
+    selectTab("info", false);
+  });
+  tab3d.addEventListener("click", function () {
+    selectTab("3d", false);
+  });
+  tabsEl.addEventListener("keydown", function (e) {
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "Home" || e.key === "End") {
+      e.preventDefault();
+      var go3d = e.key === "ArrowRight" || e.key === "End";
+      selectTab(go3d ? "3d" : "info", true);
+    }
+  });
 
   function openModal(business, trigger) {
     lastTrigger = trigger || null;
+    currentBusiness = business;
+    frameLoaded = false;
+    frame.removeAttribute("src");
+
+    // Φωτογραφίες στην κορυφή
+    clearList(modalTimers);
+    banner.replaceChildren();
+    if (business.images.length) {
+      banner.appendChild(createSlideshow(business.images, "Φωτογραφία: " + business.name, 0, modalTimers));
+      banner.hidden = false;
+    } else {
+      banner.hidden = true;
+    }
 
     titleEl.textContent = business.name;
-
     taglineEl.textContent = business.tagline;
     taglineEl.hidden = !business.tagline;
 
+    // Επισκόπηση
     aboutText.textContent = business.description;
     aboutSec.hidden = !business.description;
 
-    accessText.textContent = business.accessibility;
+    renderAccessibility(business.accessibility);
     accessSec.hidden = !business.accessibility;
 
-    // The iframe src is set dynamically from the record's xr_link field.
-    if (business.xrLink && isHttps(business.xrLink)) {
-      frame.title = business.name + " interactive 3D space";
-      frame.src = business.xrLink;
-      frame.hidden = false;
-      noXr.hidden = true;
-      newTab.href = business.xrLink;
-      newTab.hidden = false;
+    if (business.siteUrl) {
+      siteLink.href = business.siteUrl;
+      siteLink.hidden = false;
     } else {
-      frame.removeAttribute("src");
-      frame.hidden = true;
-      noXr.hidden = false;
-      newTab.hidden = true;
+      siteLink.hidden = true;
     }
+
+    emptyEl.hidden = !!(business.description || business.accessibility || business.siteUrl);
+
+    // Καρτέλα 3D: εμφανίζεται μόνο αν υπάρχει σύνδεσμος
+    if (business.xrLink) {
+      newTab.href = business.xrLink;
+      tabsEl.hidden = false;
+    } else {
+      tabsEl.hidden = true;
+    }
+    selectTab("info", false);
 
     modal.hidden = false;
     document.body.classList.add("modal-open");
@@ -403,7 +518,10 @@
   function closeModal() {
     if (modal.hidden) return;
     modal.hidden = true;
-    frame.src = "about:blank"; // stops the 3D scene
+    frame.src = "about:blank"; // σταματάει ο 3D χώρος
+    frameLoaded = false;
+    currentBusiness = null;
+    clearList(modalTimers);
     document.body.classList.remove("modal-open");
     if (lastTrigger && typeof lastTrigger.focus === "function") lastTrigger.focus();
     lastTrigger = null;
@@ -411,14 +529,14 @@
 
   closeBtn.addEventListener("click", closeModal);
   modal.addEventListener("click", function (e) {
-    if (e.target === modal) closeModal(); // click on the dark backdrop
+    if (e.target === modal) closeModal(); // κλικ στο σκοτεινό φόντο
   });
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape") closeModal();
   });
 
   /* ------------------------------------------------------------------------ */
-  /*  START                                                                   */
+  /*  ΕΚΚΙΝΗΣΗ                                                                */
   /* ------------------------------------------------------------------------ */
 
   loadWall();
