@@ -26,7 +26,13 @@
     description: ["detailed_description", "description"],
     accessibility: ["detailed_accessibility_info", "accessibility_details"],
     xr: ["city4all_xr_link", "xr_link"],
-    site: ["official_business_link", "business_link", "website"]
+    site: ["official_business_link", "business_link", "website"],
+    // Τοποθεσία: δοκιμάζονται αυτά τα ονόματα. Αν δεν βρεθεί κανένα, ψάχνεται
+    // οποιοδήποτε πεδίο με "location" ή "address" στο όνομά του (βλ. findLocation).
+    location: [
+      "business_location", "location", "business_address", "address",
+      "street_address", "location_text", "city4all_location", "official_location"
+    ]
   };
 
   var PLACEHOLDER_SVG =
@@ -98,6 +104,47 @@
     return "";
   }
 
+  // Τοποθεσία ως κείμενο: πρώτα τα γνωστά ονόματα, μετά οποιοδήποτε πεδίο
+  // που μοιάζει με τοποθεσία/διεύθυνση και δεν χρησιμοποιείται αλλού.
+  function findLocation(attrs) {
+    var direct = pick(attrs, FIELD_NAMES.location);
+    if (direct) return direct;
+
+    var known = {};
+    Object.keys(FIELD_NAMES).forEach(function (group) {
+      FIELD_NAMES[group].forEach(function (n) {
+        known[n.toLowerCase()] = true;
+      });
+    });
+
+    var keys = Object.keys(attrs);
+    for (var i = 0; i < keys.length; i++) {
+      if (known[keys[i].toLowerCase()]) continue;
+      if (/locat|addr|τοποθεσ|διευθυν/i.test(keys[i])) {
+        var value = attrs[keys[i]];
+        if (typeof value === "string" && value.trim()) return value.trim();
+      }
+    }
+    return "";
+  }
+
+  // Συντεταγμένες από το σημείο του record (0,0 σημαίνει ότι δεν δόθηκε τοποθεσία).
+  function readCoords(geometry) {
+    if (!geometry) return null;
+    var lng = Number(geometry.x);
+    var lat = Number(geometry.y);
+    if (!isFinite(lng) || !isFinite(lat)) return null;
+    if (lng === 0 && lat === 0) return null;
+    if (Math.abs(lng) > 180 || Math.abs(lat) > 90) return null;
+    return { lat: lat, lng: lng };
+  }
+
+  function buildMapUrl(location, coords) {
+    var query = coords ? coords.lat + "," + coords.lng : location;
+    if (!query) return "";
+    return "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(query);
+  }
+
   /* ------------------------------------------------------------------------ */
   /*  ΔΕΔΟΜΕΝΑ (ArcGIS)                                                       */
   /* ------------------------------------------------------------------------ */
@@ -132,7 +179,8 @@
   }
 
   async function loadFromLayer(layerUrl, signal) {
-    var data = await fetchJson(withToken(layerUrl + "/query?where=1%3D1&outFields=*&f=json"), signal);
+    // outSR=4326: οι συντεταγμένες επιστρέφονται ως γεωγραφικό μήκος/πλάτος.
+    var data = await fetchJson(withToken(layerUrl + "/query?where=1%3D1&outFields=*&outSR=4326&f=json"), signal);
 
     var oidField = data.objectIdFieldName;
     if (!oidField) {
@@ -142,18 +190,18 @@
       oidField = oidDef ? oidDef.name : "OBJECTID";
     }
 
-    var records = (data.features || [])
-      .map(function (f) {
-        return f.attributes || {};
-      })
-      .filter(function (a) {
-        return getField(a, oidField) != null && pick(a, FIELD_NAMES.name);
-      });
+    var records = (data.features || []).filter(function (f) {
+      var a = f.attributes || {};
+      return getField(a, oidField) != null && pick(a, FIELD_NAMES.name);
+    });
 
     return Promise.all(
-      records.map(async function (attrs) {
+      records.map(async function (feature) {
+        var attrs = feature.attributes;
         var objectId = getField(attrs, oidField);
         var images = await fetchImageUrls(layerUrl, objectId, signal);
+        var location = findLocation(attrs);
+        var coords = readCoords(feature.geometry);
         return {
           id: objectId,
           name: pick(attrs, FIELD_NAMES.name),
@@ -162,6 +210,8 @@
           accessibility: pick(attrs, FIELD_NAMES.accessibility),
           xrLink: normalizeUrl(pick(attrs, FIELD_NAMES.xr)),
           siteUrl: normalizeUrl(pick(attrs, FIELD_NAMES.site)),
+          location: location,
+          mapUrl: buildMapUrl(location, coords),
           images: images
         };
       })
@@ -280,6 +330,7 @@
     var body = make("div", "card__body");
     var top = make("div");
     top.appendChild(make("h3", "card__title", business.name));
+    if (business.location) top.appendChild(make("p", "card__location", business.location));
     if (business.tagline) top.appendChild(make("p", "card__tagline", business.tagline));
     body.appendChild(top);
     body.appendChild(make("span", "card__cta", "Εξερευνήστε την επιχείρηση →"));
@@ -401,8 +452,12 @@
   var panel3d = byId("c4a-panel-3d");
   var aboutSec = byId("c4a-about");
   var aboutText = byId("c4a-about-text");
+  var locationSec = byId("c4a-location");
+  var locationText = byId("c4a-location-text");
+  var mapLink = byId("c4a-map");
   var accessSec = byId("c4a-access");
   var accessBody = byId("c4a-access-body");
+  var accessCount = byId("c4a-access-count");
   var siteLink = byId("c4a-site");
   var emptyEl = byId("c4a-empty");
   var frame = byId("c4a-frame");
@@ -412,25 +467,36 @@
   var currentBusiness = null;
   var frameLoaded = false;
 
-  // Πολλές γραμμές -> λίστα σημείων. Μία γραμμή -> παράγραφος.
-  function renderAccessibility(text) {
-    accessBody.textContent = "";
-    var lines = text
-      .split(/\r?\n/)
+  // Κάθε γραμμή του κειμένου γίνεται ένα χαρακτηριστικό προσβασιμότητας (κάρτα,
+  // χωρίς bullets). Αν υπάρχει μία μόνο γραμμή με ερωτηματικά ";", σπάει σε πολλά.
+  function parseAccessibility(text) {
+    var lines = String(text || "").split(/\r?\n/);
+    if (lines.length === 1 && lines[0].indexOf(";") !== -1) lines = lines[0].split(";");
+    return lines
       .map(function (line) {
-        return line.replace(/^\s*[-•*·]\s*/, "").trim();
+        return line.replace(/^\s*(?:[-•*·]|\d+[.)])\s*/, "").trim();
       })
       .filter(Boolean);
+  }
 
-    if (lines.length > 1) {
-      var list = make("ul", "access-list");
-      lines.forEach(function (line) {
-        list.appendChild(make("li", null, line));
-      });
-      accessBody.appendChild(list);
-    } else if (lines.length === 1) {
-      accessBody.appendChild(make("p", null, lines[0]));
+  function renderAccessibility(text) {
+    accessBody.textContent = "";
+    var items = parseAccessibility(text);
+    if (!items.length) {
+      accessCount.textContent = "";
+      return 0;
     }
+
+    var grid = make("ul", "access-grid");
+    grid.setAttribute("role", "list"); // το Safari αφαιρεί τη σημασιολογία λίστας όταν δεν υπάρχουν bullets
+    items.forEach(function (item) {
+      var cls = "access-item" + (items.length === 1 ? " access-item--wide" : "");
+      grid.appendChild(make("li", cls, item));
+    });
+    accessBody.appendChild(grid);
+
+    accessCount.textContent = items.length + (items.length === 1 ? " χαρακτηριστικό" : " χαρακτηριστικά");
+    return items.length;
   }
 
   function selectTab(which, moveFocus) {
@@ -489,8 +555,19 @@
     aboutText.textContent = business.description;
     aboutSec.hidden = !business.description;
 
-    renderAccessibility(business.accessibility);
-    accessSec.hidden = !business.accessibility;
+    // Τοποθεσία (κείμενο και/ή σύνδεσμος χάρτη)
+    locationText.textContent = business.location;
+    locationText.hidden = !business.location;
+    if (business.mapUrl) {
+      mapLink.href = business.mapUrl;
+      mapLink.hidden = false;
+    } else {
+      mapLink.hidden = true;
+    }
+    locationSec.hidden = !(business.location || business.mapUrl);
+
+    var accessItems = renderAccessibility(business.accessibility);
+    accessSec.hidden = accessItems === 0;
 
     if (business.siteUrl) {
       siteLink.href = business.siteUrl;
@@ -499,7 +576,13 @@
       siteLink.hidden = true;
     }
 
-    emptyEl.hidden = !!(business.description || business.accessibility || business.siteUrl);
+    emptyEl.hidden = !!(
+      business.description ||
+      business.location ||
+      business.mapUrl ||
+      accessItems ||
+      business.siteUrl
+    );
 
     // Καρτέλα 3D: εμφανίζεται μόνο αν υπάρχει σύνδεσμος
     if (business.xrLink) {
