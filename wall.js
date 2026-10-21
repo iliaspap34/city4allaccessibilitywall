@@ -15,7 +15,7 @@
   // Χρειάζεται μόνο αν το layer ΔΕΝ είναι δημόσιο.
   var ARCGIS_TOKEN = "";
 
-  var BP_URL = "https://www.city4all.org/pages/city4allbp";
+  var BP_URL = "https://iliaspap34.github.io/City4all-payment-page/";
   var MAX_IMAGES = 3;
   var SLIDE_INTERVAL_MS = 3000;
 
@@ -456,8 +456,7 @@
   var locationText = byId("c4a-location-text");
   var mapLink = byId("c4a-map");
   var accessSec = byId("c4a-access");
-  var accessBody = byId("c4a-access-body");
-  var accessCount = byId("c4a-access-count");
+  var accessText = byId("c4a-access-text");
   var siteLink = byId("c4a-site");
   var emptyEl = byId("c4a-empty");
   var frame = byId("c4a-frame");
@@ -467,36 +466,11 @@
   var currentBusiness = null;
   var frameLoaded = false;
 
-  // Κάθε γραμμή του κειμένου γίνεται ένα χαρακτηριστικό προσβασιμότητας (κάρτα,
-  // χωρίς bullets). Αν υπάρχει μία μόνο γραμμή με ερωτηματικά ";", σπάει σε πολλά.
-  function parseAccessibility(text) {
-    var lines = String(text || "").split(/\r?\n/);
-    if (lines.length === 1 && lines[0].indexOf(";") !== -1) lines = lines[0].split(";");
-    return lines
-      .map(function (line) {
-        return line.replace(/^\s*(?:[-•*·]|\d+[.)])\s*/, "").trim();
-      })
-      .filter(Boolean);
-  }
-
+  // Η προσβασιμότητα εμφανίζεται ως κείμενο (οι αλλαγές γραμμής διατηρούνται).
   function renderAccessibility(text) {
-    accessBody.textContent = "";
-    var items = parseAccessibility(text);
-    if (!items.length) {
-      accessCount.textContent = "";
-      return 0;
-    }
-
-    var grid = make("ul", "access-grid");
-    grid.setAttribute("role", "list"); // το Safari αφαιρεί τη σημασιολογία λίστας όταν δεν υπάρχουν bullets
-    items.forEach(function (item) {
-      var cls = "access-item" + (items.length === 1 ? " access-item--wide" : "");
-      grid.appendChild(make("li", cls, item));
-    });
-    accessBody.appendChild(grid);
-
-    accessCount.textContent = items.length + (items.length === 1 ? " χαρακτηριστικό" : " χαρακτηριστικά");
-    return items.length;
+    var value = String(text || "").trim();
+    accessText.textContent = value;
+    return value ? 1 : 0;
   }
 
   function selectTab(which, moveFocus) {
