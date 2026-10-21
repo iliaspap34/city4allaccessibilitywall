@@ -9,8 +9,8 @@
     :root {
       --gutter: 2rem;
       --card-gap: 1.25rem;
-      --indigo-600: #4f46e5;
-      --indigo-400: #818cf8;
+      --indigo-600: #2563eb;
+      --indigo-400: #60a5fa;
       --slate-900: #0f172a;
       --slate-700: #334155;
       --slate-600: #475569;
@@ -27,7 +27,7 @@
     body {
       margin: 0;
       font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: #f1f5f9;
+      background: #ffffff;
       color: var(--slate-900);
     }
     body.modal-open { overflow: hidden; }
@@ -36,7 +36,7 @@
     .wall {
       width: 100%;
       padding: 2.5rem 0;
-      background: linear-gradient(to bottom, #f8fafc, #f1f5f9);
+      background: linear-gradient(to bottom, #ffffff, #eff6ff);
     }
     .wall__header { padding: 0 var(--gutter); margin-bottom: 1.5rem; }
     .wall__title { margin: 0; font-size: 1.75rem; font-weight: 800; }
@@ -116,7 +116,7 @@
       text-overflow: ellipsis;
     }
     .card__cta { font-size: .875rem; font-weight: 600; color: var(--indigo-600); }
-    .card:hover .card__cta { color: #3730a3; }
+    .card:hover .card__cta { color: #1d4ed8; }
 
     /* --------------------- Image slideshow (fade) ------------------------ */
     .slideshow {
@@ -142,7 +142,7 @@
       align-items: center;
       justify-content: center;
       color: var(--indigo-400);
-      background: linear-gradient(135deg, #e0e7ff, #e0f2fe);
+      background: linear-gradient(135deg, #dbeafe, #dcfce7);
     }
 
     /* ---------------------- "Add your business" card --------------------- */
@@ -152,12 +152,12 @@
       justify-content: space-between;
       padding: 1.25rem;
       color: #fff;
-      background: linear-gradient(135deg, #4f46e5, #7c3aed 55%, #c026d3);
-      box-shadow: 0 10px 24px rgba(79, 70, 229, .35);
+      background: linear-gradient(135deg, #1d4ed8, #2563eb 55%, #059669);
+      box-shadow: 0 10px 24px rgba(37, 99, 235, .35);
       scroll-snap-align: end;
     }
-    .card--add:hover { box-shadow: 0 18px 34px rgba(79, 70, 229, .45); }
-    .card--add:focus-visible { outline-color: #f0abfc; }
+    .card--add:hover { box-shadow: 0 18px 34px rgba(37, 99, 235, .45); }
+    .card--add:focus-visible { outline-color: #86efac; }
     .card--add::before,
     .card--add::after {
       content: "";
@@ -324,49 +324,15 @@
       color: var(--slate-500);
     }
     .modal__section p { margin: .5rem 0 0; line-height: 1.65; white-space: pre-line; color: var(--slate-700); }
-    /* Προσβασιμότητα: κάρτες-χαρακτηριστικά, χωρίς bullets και emoji */
+    /* Προσβασιμότητα: κείμενο σε πράσινο πλαίσιο */
     .modal__section--access {
       padding: 1.1rem 1.25rem 1.25rem;
       border-radius: 1rem;
       background: #f0fdf4;
-      box-shadow: 0 0 0 1px #bbf7d0;
+      box-shadow: 0 0 0 1px #bbf7d0, inset 4px 0 0 #10b981;
     }
     .modal__section--access h3 { color: #047857; }
-    .access__head {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: .75rem;
-    }
-    .access__count {
-      padding: .1rem .65rem;
-      border-radius: 999px;
-      background: #d1fae5;
-      color: #065f46;
-      font-size: .75rem;
-      font-weight: 600;
-      white-space: nowrap;
-    }
-    .access-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
-      gap: .6rem;
-      margin: .85rem 0 0;
-      padding: 0;
-      list-style: none;
-    }
-    .access-item {
-      padding: .7rem .95rem;
-      border-radius: .75rem;
-      background: #fff;
-      box-shadow: inset 4px 0 0 #10b981, 0 0 0 1px #d1fae5;
-      color: #064e3b;
-      font-size: .9rem;
-      font-weight: 500;
-      line-height: 1.45;
-      overflow-wrap: anywhere;
-    }
-    .access-item--wide { grid-column: 1 / -1; }
+    .modal__section--access p { color: #064e3b; }
 
     .link-inline {
       display: inline-block;
@@ -387,7 +353,7 @@
       font-weight: 600;
       text-decoration: none;
     }
-    .btn-link:hover { background: #4338ca; }
+    .btn-link:hover { background: #1d4ed8; }
     .btn-link:focus-visible { outline: 4px solid var(--indigo-400); outline-offset: 2px; }
     .modal__empty { margin: 0; color: var(--slate-500); }
 
@@ -458,11 +424,8 @@
           </section>
 
           <section id="c4a-access" class="modal__section modal__section--access" hidden>
-            <div class="access__head">
-              <h3>Προσβασιμότητα</h3>
-              <span id="c4a-access-count" class="access__count"></span>
-            </div>
-            <div id="c4a-access-body"></div>
+            <h3>Προσβασιμότητα</h3>
+            <p id="c4a-access-text"></p>
           </section>
 
           <a id="c4a-site" class="btn-link" target="_blank" rel="noopener noreferrer" hidden>Επίσκεψη στον ιστότοπο της επιχείρησης &#8599;</a>
@@ -485,6 +448,6 @@
     </div>
   </div>
 
-  <script src="wall.js?v=3" defer></script>
+  <script src="wall.js?v=4" defer></script>
 </body>
 </html>
