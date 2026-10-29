@@ -3,44 +3,78 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Τοίχος Προσβασιμότητας City4All</title>
+  <title>City4All Accessible Wall</title>
 
   <style>
+    /* Παλέτα ίδια με την κεντρική σελίδα: σκούρο φόντο, λευκοί τίτλοι, πράσινο accent */
     :root {
-      --gutter: 2rem;
       --card-gap: 1.25rem;
-      --indigo-600: #2563eb;
-      --indigo-400: #60a5fa;
-      --slate-900: #0f172a;
-      --slate-700: #334155;
-      --slate-600: #475569;
-      --slate-500: #64748b;
-      --slate-200: #e2e8f0;
-    }
-    @media (max-width: 640px) {
-      :root { --gutter: 1rem; }
+      --text: #dbe5ef;
+      --text-soft: #c6d5e1;
+      --text-mute: #9fb2c4;
+      --white: #ffffff;
+      --green: #86c99e;
+      --green-soft: #86b99a;
+      --green-brand: #15803d;
+      --blue: #1d4ed8;
+      --panel: rgba(255, 255, 255, .04);
+      --panel-hover: rgba(255, 255, 255, .08);
+      --line: rgba(255, 255, 255, .12);
+      --navy: #0f1b2b;
     }
 
     * { box-sizing: border-box; }
     [hidden] { display: none !important; }
 
+    html, body { background: transparent; }
     body {
       margin: 0;
-      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: #ffffff;
-      color: var(--slate-900);
+      font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+      color: var(--text);
     }
     body.modal-open { overflow: hidden; }
 
     /* ---------------------------- Wall layout ---------------------------- */
     .wall {
       width: 100%;
-      padding: 2.5rem 0;
-      background: linear-gradient(to bottom, #ffffff, #eff6ff);
+      padding: 8px 0 16px;
     }
-    .wall__header { padding: 0 var(--gutter); margin-bottom: 1.5rem; }
-    .wall__title { margin: 0; font-size: 1.75rem; font-weight: 800; }
-    .wall__subtitle { margin: .35rem 0 0; max-width: 42rem; color: var(--slate-600); }
+
+    .wall__eyebrow {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      color: var(--green-soft);
+      font-size: .76rem;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+    .wall__eyebrow::before {
+      content: "";
+      display: block;
+      width: 28px;
+      height: 1px;
+      background: var(--green-brand);
+    }
+
+    .wall__title {
+      margin: 0 0 18px;
+      color: var(--white);
+      font-size: clamp(2rem, 4vw, 2.7rem);
+      font-weight: 600;
+      line-height: 1.2;
+      letter-spacing: -1.1px;
+    }
+    .wall__subtitle {
+      max-width: 700px;
+      margin: 0 0 28px;
+      color: var(--white);
+      font-size: clamp(1.1rem, 2vw, 1.3rem);
+      line-height: 1.65;
+      font-weight: 400;
+    }
 
     /* ------------------------ Horizontal carousel ------------------------ */
     .carousel {
@@ -50,9 +84,11 @@
       scroll-behavior: smooth;
       scroll-snap-type: x proximity;
       -webkit-overflow-scrolling: touch;
-      padding: .5rem var(--gutter) 1rem;
+      padding: 6px 0 16px;
+      scrollbar-color: rgba(134, 201, 158, .45) transparent;
     }
     .carousel::after { content: ""; flex: 0 0 1px; }
+    .carousel:focus-visible { outline: 2px solid var(--green); outline-offset: 4px; border-radius: .5rem; }
 
     /* ------------------------------- Cards ------------------------------- */
     .card {
@@ -62,23 +98,23 @@
       height: 10rem;
       overflow: hidden;
       padding: 0;
-      border: 0;
+      border: 1px solid var(--line);
       border-radius: 1rem;
-      background: #fff;
-      box-shadow: 0 4px 10px rgba(15, 23, 42, .10), 0 0 0 1px var(--slate-200);
-      color: inherit;
+      background: var(--panel);
+      color: var(--text);
       font: inherit;
       text-align: left;
       text-decoration: none;
       cursor: pointer;
       scroll-snap-align: start;
-      transition: transform .2s ease, box-shadow .2s ease;
+      transition: transform .2s ease, background .2s ease, border-color .2s ease;
     }
     .card:hover {
       transform: translateY(-2px);
-      box-shadow: 0 14px 28px rgba(15, 23, 42, .18), 0 0 0 1px var(--slate-200);
+      background: var(--panel-hover);
+      border-color: rgba(134, 201, 158, .55);
     }
-    .card:focus-visible { outline: 4px solid var(--indigo-400); outline-offset: 2px; }
+    .card:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
 
     .card__body {
       flex: 1;
@@ -90,8 +126,10 @@
     }
     .card__title {
       margin: 0;
-      font-size: 1rem;
-      font-weight: 700;
+      color: var(--white);
+      font-size: 1.05rem;
+      font-weight: 600;
+      letter-spacing: -.2px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -99,7 +137,8 @@
     .card__tagline {
       margin: .3rem 0 0;
       font-size: .875rem;
-      color: var(--slate-600);
+      line-height: 1.45;
+      color: var(--text-soft);
       display: -webkit-box;
       -webkit-line-clamp: 2;
       line-clamp: 2;
@@ -108,15 +147,16 @@
     }
     .card__location {
       margin: .15rem 0 0;
-      font-size: .8rem;
+      font-size: .78rem;
       font-weight: 600;
-      color: var(--indigo-600);
+      letter-spacing: .3px;
+      color: var(--green-soft);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .card__cta { font-size: .875rem; font-weight: 600; color: var(--indigo-600); }
-    .card:hover .card__cta { color: #1d4ed8; }
+    .card__cta { font-size: .875rem; font-weight: 600; color: var(--green); }
+    .card:hover .card__cta { color: var(--white); }
 
     /* --------------------- Image slideshow (fade) ------------------------ */
     .slideshow {
@@ -125,7 +165,7 @@
       width: 9rem;
       height: 100%;
       overflow: hidden;
-      background: var(--slate-200);
+      background: rgba(255, 255, 255, .08);
     }
     .slide {
       position: absolute;
@@ -141,8 +181,8 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      color: var(--indigo-400);
-      background: linear-gradient(135deg, #dbeafe, #dcfce7);
+      color: var(--green-soft);
+      background: linear-gradient(135deg, rgba(29, 78, 216, .25), rgba(21, 128, 61, .25));
     }
 
     /* ---------------------- "Add your business" card --------------------- */
@@ -151,13 +191,16 @@
       flex-direction: column;
       justify-content: space-between;
       padding: 1.25rem;
-      color: #fff;
-      background: linear-gradient(135deg, #1d4ed8, #2563eb 55%, #059669);
-      box-shadow: 0 10px 24px rgba(37, 99, 235, .35);
+      color: var(--white);
+      border-color: transparent;
+      background: linear-gradient(135deg, var(--blue), #1c6a8a 50%, var(--green-brand));
       scroll-snap-align: end;
     }
-    .card--add:hover { box-shadow: 0 18px 34px rgba(37, 99, 235, .45); }
-    .card--add:focus-visible { outline-color: #86efac; }
+    .card--add:hover {
+      background: linear-gradient(135deg, var(--blue), #1c6a8a 50%, var(--green-brand));
+      border-color: rgba(255, 255, 255, .45);
+    }
+    .card--add:focus-visible { outline-color: #bbf7d0; }
     .card--add::before,
     .card--add::after {
       content: "";
@@ -176,53 +219,54 @@
       background: rgba(255, 255, 255, .2);
       font-size: .7rem;
       font-weight: 600;
-      letter-spacing: .06em;
+      letter-spacing: .08em;
       text-transform: uppercase;
     }
     .card--add .card__title {
       margin-top: .6rem;
       white-space: normal;
       font-size: 1.25rem;
-      font-weight: 800;
+      font-weight: 600;
       line-height: 1.25;
     }
-    .card--add .card__cta { color: #fff; }
+    .card--add .card__cta,
+    .card--add:hover .card__cta { color: var(--white); }
 
     /* --------------------------- Loading skeleton ------------------------ */
     .card--skeleton { cursor: default; animation: pulse 1.5s ease-in-out infinite; }
-    .card--skeleton:hover { transform: none; }
-    .sk-img { flex: 0 0 9rem; background: var(--slate-200); }
+    .card--skeleton:hover { transform: none; background: var(--panel); border-color: var(--line); }
+    .sk-img { flex: 0 0 9rem; background: rgba(255, 255, 255, .08); }
     .sk-lines { flex: 1; padding: 1rem; display: flex; flex-direction: column; gap: .75rem; }
-    .sk-line { height: .75rem; border-radius: .25rem; background: #f1f5f9; }
-    .sk-line--title { height: 1rem; width: 75%; background: var(--slate-200); }
+    .sk-line { height: .75rem; border-radius: .25rem; background: rgba(255, 255, 255, .06); }
+    .sk-line--title { height: 1rem; width: 75%; background: rgba(255, 255, 255, .12); }
     .sk-line--short { width: 65%; }
     @keyframes pulse { 50% { opacity: .5; } }
 
     /* ------------------------ Status / error / empty --------------------- */
     .status {
-      margin: 0 var(--gutter) 1rem;
+      margin: 0 0 1rem;
       padding: 1.25rem 1.5rem;
       border-radius: 1rem;
     }
     .status p { margin: 0; }
-    .status--error { background: #fef2f2; color: #991b1b; box-shadow: 0 0 0 1px #fecaca; }
-    .status--error .status__title { font-weight: 700; }
-    .status--error .status__msg { margin-top: .4rem; font-size: .875rem; color: #b91c1c; }
-    .status--empty { background: #fff; color: var(--slate-600); box-shadow: 0 0 0 1px var(--slate-200); }
+    .status--error { background: rgba(248, 113, 113, .10); color: #fecaca; border: 1px solid rgba(248, 113, 113, .35); }
+    .status--error .status__title { font-weight: 600; color: #fee2e2; }
+    .status--error .status__msg { margin-top: .4rem; font-size: .875rem; color: #fca5a5; }
+    .status--empty { background: var(--panel); color: var(--text-soft); border: 1px solid var(--line); }
     .btn-retry {
       margin-top: .9rem;
       padding: .5rem 1rem;
       border: 0;
       border-radius: .5rem;
-      background: #dc2626;
-      color: #fff;
+      background: var(--green-brand);
+      color: var(--white);
       font: inherit;
       font-size: .875rem;
       font-weight: 600;
       cursor: pointer;
     }
-    .btn-retry:hover { background: #b91c1c; }
-    .btn-retry:focus-visible { outline: 4px solid #fca5a5; outline-offset: 2px; }
+    .btn-retry:hover { background: #16a34a; }
+    .btn-retry:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
 
     /* -------------------------------- Modal ------------------------------ */
     .modal {
@@ -233,7 +277,7 @@
       align-items: center;
       justify-content: center;
       padding: .75rem;
-      background: rgba(15, 23, 42, .70);
+      background: rgba(4, 9, 16, .80);
       backdrop-filter: blur(4px);
     }
     @media (min-width: 640px) { .modal { padding: 1.5rem; } }
@@ -246,9 +290,11 @@
       max-width: 50rem;
       max-height: 100%;
       overflow: hidden;
+      border: 1px solid var(--line);
       border-radius: 1.5rem;
-      background: #fff;
-      box-shadow: 0 25px 60px rgba(0, 0, 0, .4);
+      background: var(--navy);
+      color: var(--text);
+      box-shadow: 0 25px 60px rgba(0, 0, 0, .55);
     }
 
     .modal__close {
@@ -261,17 +307,16 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      border: 0;
+      border: 1px solid rgba(255, 255, 255, .25);
       border-radius: 50%;
-      background: rgba(255, 255, 255, .92);
-      color: var(--slate-700);
+      background: rgba(15, 27, 43, .75);
+      color: var(--white);
       font-size: 1.5rem;
       line-height: 1;
       cursor: pointer;
-      box-shadow: 0 0 0 1px var(--slate-200), 0 2px 6px rgba(0, 0, 0, .15);
     }
-    .modal__close:hover { background: #fff; }
-    .modal__close:focus-visible { outline: 4px solid var(--indigo-400); outline-offset: 2px; }
+    .modal__close:hover { background: rgba(21, 128, 61, .85); }
+    .modal__close:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
 
     .modal__banner { position: relative; flex: 0 0 auto; height: 14rem; }
     @media (min-width: 640px) { .modal__banner { height: 17rem; } }
@@ -282,34 +327,43 @@
       min-height: 0;
       overflow-y: auto;
       padding: 1.5rem;
+      scrollbar-color: rgba(134, 201, 158, .45) transparent;
     }
     @media (min-width: 640px) { .modal__scroll { padding: 2rem; } }
 
-    .modal__title { margin: 0; padding-right: 2.5rem; font-size: 1.6rem; font-weight: 800; }
-    .modal__tagline { margin: .3rem 0 0; font-size: 1rem; font-weight: 500; color: var(--indigo-600); }
+    .modal__title {
+      margin: 0;
+      padding-right: 2.5rem;
+      color: var(--white);
+      font-size: 1.7rem;
+      font-weight: 600;
+      line-height: 1.2;
+      letter-spacing: -.6px;
+    }
+    .modal__tagline { margin: .4rem 0 0; font-size: 1.05rem; font-weight: 400; color: var(--green); }
 
     /* Tabs: Overview / 3D */
     .tabs {
       display: flex;
       gap: .25rem;
       margin-top: 1.25rem;
-      border-bottom: 1px solid var(--slate-200);
+      border-bottom: 1px solid var(--line);
     }
     .tab {
       margin-bottom: -1px;
-      padding: .5rem .9rem;
+      padding: .55rem .95rem;
       border: 0;
-      border-bottom: 3px solid transparent;
+      border-bottom: 2px solid transparent;
       background: none;
-      color: var(--slate-500);
+      color: var(--text-mute);
       font: inherit;
       font-size: .875rem;
       font-weight: 600;
       cursor: pointer;
     }
-    .tab:hover { color: var(--slate-900); }
-    .tab[aria-selected="true"] { color: var(--indigo-600); border-bottom-color: var(--indigo-600); }
-    .tab:focus-visible { outline: 3px solid var(--indigo-400); outline-offset: -3px; border-radius: .4rem; }
+    .tab:hover { color: var(--white); }
+    .tab[aria-selected="true"] { color: var(--green); border-bottom-color: var(--green); }
+    .tab:focus-visible { outline: 3px solid var(--green); outline-offset: -3px; border-radius: .4rem; }
 
     .panel { margin-top: 1.25rem; }
 
@@ -317,45 +371,51 @@
     .modal__section:first-child { margin-top: 0; }
     .modal__section h3 {
       margin: 0;
-      font-size: .75rem;
-      font-weight: 700;
-      letter-spacing: .06em;
+      color: var(--green-soft);
+      font-size: .72rem;
+      font-weight: 600;
+      letter-spacing: 2px;
       text-transform: uppercase;
-      color: var(--slate-500);
     }
-    .modal__section p { margin: .5rem 0 0; line-height: 1.65; white-space: pre-line; color: var(--slate-700); }
+    .modal__section p { margin: .6rem 0 0; line-height: 1.8; white-space: pre-line; color: var(--text-soft); }
+
     /* Προσβασιμότητα: κείμενο σε πράσινο πλαίσιο */
     .modal__section--access {
       padding: 1.1rem 1.25rem 1.25rem;
       border-radius: 1rem;
-      background: #f0fdf4;
-      box-shadow: 0 0 0 1px #bbf7d0, inset 4px 0 0 #10b981;
+      background: rgba(21, 128, 61, .14);
+      border: 1px solid rgba(134, 201, 158, .30);
+      box-shadow: inset 4px 0 0 var(--green-brand);
     }
-    .modal__section--access h3 { color: #047857; }
-    .modal__section--access p { color: #064e3b; }
+    .modal__section--access h3 { color: var(--green); }
+    .modal__section--access p { color: var(--text); }
 
     .link-inline {
       display: inline-block;
       margin-top: .5rem;
       font-size: .875rem;
       font-weight: 600;
-      color: var(--indigo-600);
+      color: var(--green);
     }
+    .link-inline, .modal__newtab { text-decoration: none; }
+    .link-inline:hover, .modal__newtab:hover { color: var(--white); text-decoration: underline; text-underline-offset: 3px; }
+    .link-inline:focus-visible, .modal__newtab:focus-visible { outline: 3px solid var(--green); outline-offset: 3px; border-radius: .25rem; }
 
     .btn-link {
       display: inline-block;
       margin-top: 1.5rem;
-      padding: .65rem 1.1rem;
+      padding: .7rem 1.2rem;
       border-radius: .75rem;
-      background: var(--indigo-600);
-      color: #fff;
+      background: var(--green-brand);
+      color: var(--white);
       font-size: .9rem;
       font-weight: 600;
       text-decoration: none;
+      transition: background .2s ease;
     }
-    .btn-link:hover { background: #1d4ed8; }
-    .btn-link:focus-visible { outline: 4px solid var(--indigo-400); outline-offset: 2px; }
-    .modal__empty { margin: 0; color: var(--slate-500); }
+    .btn-link:hover { background: #16a34a; }
+    .btn-link:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
+    .modal__empty { margin: 0; color: var(--text-mute); }
 
     /* 3D viewport (inside its tab) */
     .viewport {
@@ -365,8 +425,9 @@
       min-height: 18rem;
       max-height: 34rem;
       overflow: hidden;
+      border: 1px solid var(--line);
       border-radius: 1rem;
-      background: var(--slate-900);
+      background: #060b12;
     }
     .viewport iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
     .modal__newtab {
@@ -374,7 +435,12 @@
       margin-top: 1rem;
       font-size: .875rem;
       font-weight: 600;
-      color: var(--indigo-600);
+      color: var(--green);
+    }
+
+    @media (max-width: 600px) {
+      .wall__title { letter-spacing: -.6px; }
+      .card { flex-basis: 19rem; width: 19rem; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -385,14 +451,15 @@
 </head>
 <body>
   <main class="wall" aria-labelledby="c4a-wall-title">
-    <header class="wall__header">
-      <h1 class="wall__title" id="c4a-wall-title">Τοίχος Προσβασιμότητας City4All</h1>
-      <p class="wall__subtitle">Ανακαλύψτε προσβάσιμες επιχειρήσεις. Πατήστε σε μια κάρτα για να τη γνωρίσετε καλύτερα.</p>
+    <header>
+      <div class="wall__eyebrow">Προσβάσιμες επιχειρήσεις</div>
+      <h1 class="wall__title" id="c4a-wall-title">Accessible Wall.</h1>
+      <p class="wall__subtitle">Ανακαλύψτε επιχειρήσεις που έχουν σχεδιαστεί για όλους. Πατήστε σε μια κάρτα για να τις γνωρίσετε.</p>
     </header>
 
     <div id="c4a-status" class="status" hidden></div>
     <div id="c4a-carousel" class="carousel" tabindex="0" aria-label="Προσβάσιμες επιχειρήσεις"></div>
-    <noscript><p class="status status--error">Απαιτείται JavaScript για την εμφάνιση του Τοίχου Προσβασιμότητας.</p></noscript>
+    <noscript><p class="status status--error">Απαιτείται JavaScript για την εμφάνιση του Accessible Wall.</p></noscript>
   </main>
 
   <!-- Παράθυρο λεπτομερειών επιχείρησης -->
