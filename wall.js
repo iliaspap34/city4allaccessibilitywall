@@ -15,7 +15,7 @@
   // Χρειάζεται μόνο αν το layer ΔΕΝ είναι δημόσιο.
   var ARCGIS_TOKEN = "";
 
-  var BP_URL = "https://iliaspap34.github.io/City4all-payment-page/";
+  var BP_URL = "iliaspap34.github.io/City4all-payment-page";
   var MAX_IMAGES = 3;
   var SLIDE_INTERVAL_MS = 3000;
 
