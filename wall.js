@@ -88,6 +88,14 @@
     '<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 19.5h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zM8.25 9.75a1.125 1.125 0 100-2.25 1.125 1.125 0 000 2.25zM21 15l-5.16-5.16a2.25 2.25 0 00-3.18 0L3 18.75"/>' +
     "</svg>";
 
+  // Απλό, στρογγυλό information sign ⓘ
+  var INFO_SVG =
+    '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+    '<circle cx="12" cy="12" r="9.1" stroke="currentColor" stroke-width="1.7"/>' +
+    '<circle cx="12" cy="8" r="1.15" fill="currentColor"/>' +
+    '<path d="M12 11v5.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>' +
+    "</svg>";
+
   /* ------------------------------------------------------------------------ */
   /*  ΒΟΗΘΗΤΙΚΕΣ ΣΥΝΑΡΤΗΣΕΙΣ                                                  */
   /* ------------------------------------------------------------------------ */
@@ -806,31 +814,15 @@
 
   /* --- Σήματα πληροφοριών ------------------------------------------------ */
 
-  function signGlyph() {
-    var span = document.createElement("span");
-    span.className = "c4a-sign__glyph";
-    span.setAttribute("aria-hidden", "true");
-    // Στατικό SVG — καμία πληροφορία χρήστη δεν μπαίνει ως HTML.
-    span.innerHTML =
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">' +
-      '<rect x="3.75" y="4.75" width="16.5" height="14.5" rx="2.2"/>' +
-      '<path stroke-linecap="round" d="M7.5 9h9M7.5 12.5h5.5"/>' +
-      "</svg>";
-    return span;
-  }
-
-  // createTooltipFunc του Pannellum: χτίζει το ορατό «σήμα» του hotspot.
+  // createTooltipFunc του Pannellum: χτίζει το στρογγυλό σήμα ⓘ του hotspot.
   function createSignElement(hotspotDiv, args) {
     var sign = document.createElement("button");
     sign.type = "button";
     sign.className = "c4a-sign";
     sign.setAttribute("data-sign-index", String(args.index));
-    sign.setAttribute("aria-label", "Άνοιγμα πληροφοριών: " + args.label);
-
-    sign.appendChild(signGlyph());
-    sign.appendChild(make("span", "c4a-sign__direction", args.label));
-    sign.appendChild(make("span", "c4a-sign__caption", "Πληροφορίες"));
-    sign.appendChild(make("span", "c4a-sign__hint", "Πατήστε"));
+    sign.setAttribute("aria-label", "Πληροφορίες: " + args.label);
+    sign.setAttribute("title", "Πληροφορίες: " + args.label);
+    sign.innerHTML = INFO_SVG; // στατικό SVG, χωρίς δεδομένα χρήστη
 
     // Το κλικ δεν φτάνει στο hotspot div (άρα δεν υπάρχει διπλό άνοιγμα)
     // και δεν ξεκινά σύρσιμο του πανοράματος.
