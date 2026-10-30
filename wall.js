@@ -1,4 +1,9 @@
-/* Τοίχος Προσβασιμότητας City4All — απλή JavaScript, χωρίς βιβλιοθήκες. */
+/* Τοίχος Προσβασιμότητας City4All — απλή JavaScript, χωρίς βιβλιοθήκες.
+ *
+ * v5: αυτόματοι 360° χώροι από τα attachments του ArcGIS Survey123,
+ *     τέσσερα διαδραστικά σήματα πληροφοριών και επέκταση της κάρτας
+ *     σε πλήρη οθόνη μέσω postMessage με τη γονική σελίδα.
+ */
 (function () {
   "use strict";
 
@@ -33,6 +38,42 @@
       "business_location", "location", "business_address", "address",
       "street_address", "location_text", "city4all_location", "official_location"
     ]
+  };
+
+  // ---- 360° ρυθμίσεις ------------------------------------------------------
+  var PANO = {
+    // Pannellum από CDN — φορτώνεται μόνο όταν ανοίξει ο πρώτος 360° χώρος.
+    css: "https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css",
+    js: "https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js",
+    libTimeoutMs: 15000,
+    imageTimeoutMs: 20000,
+    loadTimeoutMs: 20000,
+    // Ελαφρώς κάτω από το ύψος των ματιών, ώστε τα σήματα να «κάθονται» φυσικά.
+    pitch: -4,
+    // Ακριβής αντιστοίχιση πεδίων → κατεύθυνση → yaw (βλ. προδιαγραφή).
+    signs: [
+      { field: "360text1", label: "Μπροστά", yaw: 0 },
+      { field: "360text2", label: "Δεξιά", yaw: 90 },
+      { field: "360text3", label: "Πίσω", yaw: 180 },
+      { field: "360text4", label: "Αριστερά", yaw: -90 }
+    ]
+  };
+
+  // Πιθανά ονόματα του πεδίου με την πανοραμική εικόνα.
+  var PANO_FIELD_CANDIDATES = [
+    "360image", "field_360image", "image360", "360_image", "360photo", "pano360", "panorama"
+  ];
+
+  // ---- Επικοινωνία με τη γονική σελίδα (postMessage) -----------------------
+  var EMBED = {
+    source: "city4all-wall",       // τι στέλνει ο τοίχος
+    parentSource: "city4all-parent", // τι περιμένει να λάβει
+    // Προαιρετικό. Αν μείνει κενό, χρησιμοποιείται το origin του document.referrer,
+    // αλλιώς "*" (αν η γονική σελίδα δεν στέλνει referrer).
+    targetOrigin: "",
+    // Προαιρετική λίστα με αποδεκτά origins για εισερχόμενα μηνύματα.
+    // Αν είναι κενή, γίνεται έλεγχος με το targetOrigin.
+    allowedOrigins: []
   };
 
   var PLACEHOLDER_SVG =
@@ -87,7 +128,7 @@
   // Βρίσκει πεδίο χωρίς να μετράει πεζά/κεφαλαία.
   function getField(attrs, name) {
     if (Object.prototype.hasOwnProperty.call(attrs, name)) return attrs[name];
-    var wanted = name.toLowerCase();
+    var wanted = String(name).toLowerCase();
     var keys = Object.keys(attrs);
     for (var i = 0; i < keys.length; i++) {
       if (keys[i].toLowerCase() === wanted) return attrs[keys[i]];
@@ -160,7 +201,67 @@
     return data;
   }
 
-  async function fetchImageUrls(layerUrl, objectId, signal) {
+  /* --- Αναγνώριση πραγματικών ονομάτων πεδίων (name ή alias) -------------- */
+
+  function normKey(value) {
+    return String(value == null ? "" : value).toLowerCase().replace(/[^a-z0-9]/g, "");
+  }
+
+  // Επιστρέφει το πραγματικό όνομα πεδίου (attributes key) που αντιστοιχεί σε
+  // ένα από τα ζητούμενα ονόματα, ελέγχοντας και το alias του layer.
+  function resolveFieldKey(fields, candidates) {
+    var cands = candidates.map(normKey).filter(Boolean);
+    if (!cands.length) return null;
+
+    var entries = (fields || [])
+      .filter(function (f) { return f && f.name; })
+      .map(function (f) { return { name: f.name, probes: [f.name, f.alias] }; });
+
+    // 1) Ακριβής αντιστοίχιση σε name ή alias.
+    for (var i = 0; i < entries.length; i++) {
+      for (var p = 0; p < entries[i].probes.length; p++) {
+        if (cands.indexOf(normKey(entries[i].probes[p])) !== -1) return entries[i].name;
+      }
+    }
+
+    // 2) Το Survey123 συχνά προσθέτει prefix (π.χ. field_360text1).
+    for (var j = 0; j < entries.length; j++) {
+      var probes = entries[j].probes.map(normKey);
+      for (var c = 0; c < cands.length; c++) {
+        if (cands[c].length < 4) continue;
+        for (var q = 0; q < probes.length; q++) {
+          if (probes[q] && probes[q].indexOf(cands[c]) !== -1) return entries[j].name;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  // Χάρτης πεδίων 360° για το συγκεκριμένο layer.
+  function buildPanoKeyMap(fields) {
+    return {
+      image: resolveFieldKey(fields, PANO_FIELD_CANDIDATES),
+      texts: PANO.signs.map(function (def) {
+        return resolveFieldKey(fields, [def.field, "field_" + def.field, def.field + "_field"]);
+      })
+    };
+  }
+
+  // Διαβάζει τιμή 360° πεδίου: πρώτα με το πραγματικό όνομα, μετά με τα πιθανά.
+  function readPanoField(attrs, resolvedKey, candidates) {
+    if (resolvedKey) {
+      var direct = getField(attrs, resolvedKey);
+      if (direct != null && String(direct).trim() !== "") return String(direct).trim();
+    }
+    return pick(attrs, candidates);
+  }
+
+  /* --- Attachments -------------------------------------------------------- */
+
+  // Επιστρέφει ΟΛΑ τα image attachments με metadata, ώστε να ξεχωρίζει η
+  // πανοραμική εικόνα από τις κανονικές φωτογραφίες.
+  async function fetchAttachments(layerUrl, objectId, signal) {
     try {
       var base = layerUrl + "/" + objectId + "/attachments";
       var data = await fetchJson(withToken(base + "?f=json"), signal);
@@ -168,9 +269,14 @@
         .filter(function (a) {
           return String(a.contentType || "").toLowerCase().indexOf("image/") === 0;
         })
-        .slice(0, MAX_IMAGES)
         .map(function (a) {
-          return withToken(base + "/" + a.id);
+          return {
+            id: a.id,
+            name: String(a.name || ""),
+            size: Number(a.size) || 0,
+            contentType: String(a.contentType || ""),
+            url: withToken(base + "/" + a.id)
+          };
         });
     } catch (err) {
       if (err.name === "AbortError") throw err;
@@ -178,17 +284,74 @@
     }
   }
 
+  // Η τιμή του πεδίου μπορεί να είναι URL, όνομα αρχείου ή απλό κείμενο.
+  function attachmentValue(raw) {
+    if (raw == null) return "";
+    if (typeof raw === "string") return raw.trim();
+    if (typeof raw === "object") {
+      return String(raw.url || raw.href || raw.name || raw.filename || "").trim();
+    }
+    return String(raw).trim();
+  }
+
+  // Επιλέγει ΜΟΝΟ το attachment της πανοραμικής εικόνας αυτού του record.
+  function pickPanorama(attachments, rawValue) {
+    if (!attachments || !attachments.length) return null;
+
+    var value = attachmentValue(rawValue);
+
+    // 1) Το πεδίο περιέχει έτοιμο URL (παλιά δεδομένα / hosted layer).
+    if (value && /^https?:\/\//i.test(value)) {
+      var direct = normalizeUrl(value);
+      if (direct) {
+        return { id: "external", name: "360", size: 0, contentType: "image/*", url: withToken(direct) };
+      }
+    }
+
+    // 2) Το πεδίο περιέχει το όνομα του αρχείου που ανέβηκε.
+    if (value) {
+      var baseName = value.split(/[\\/]/).pop().toLowerCase();
+      var byExact = attachments.find(function (a) {
+        return a.name.toLowerCase() === baseName;
+      });
+      if (byExact) return byExact;
+
+      var byPartial = attachments.find(function (a) {
+        var n = a.name.toLowerCase();
+        return n && (n.indexOf(baseName) !== -1 || (baseName.length > 4 && baseName.indexOf(n) !== -1));
+      });
+      if (byPartial) return byPartial;
+    }
+
+    // 3) Το όνομα του attachment δηλώνει πανοράμα.
+    var byKeyword = attachments.find(function (a) {
+      return /(^|[^a-z])(360|pano|panorama|equirect|photosphere|sphere)([^a-z]|$)/i.test(a.name);
+    });
+    if (byKeyword) return byKeyword;
+
+    // 4) Το πεδίο 360image είναι συμπληρωμένο αλλά το όνομα διαφέρει:
+    //    η μεγαλύτερη εικόνα είναι η πανοραμική.
+    if (value) {
+      return attachments.slice().sort(function (a, b) { return b.size - a.size; })[0];
+    }
+
+    return null;
+  }
+
   async function loadFromLayer(layerUrl, signal) {
     // outSR=4326: οι συντεταγμένες επιστρέφονται ως γεωγραφικό μήκος/πλάτος.
     var data = await fetchJson(withToken(layerUrl + "/query?where=1%3D1&outFields=*&outSR=4326&f=json"), signal);
 
+    var fields = data.fields || [];
     var oidField = data.objectIdFieldName;
     if (!oidField) {
-      var oidDef = (data.fields || []).find(function (f) {
+      var oidDef = fields.find(function (f) {
         return f.type === "esriFieldTypeOID";
       });
       oidField = oidDef ? oidDef.name : "OBJECTID";
     }
+
+    var keyMap = buildPanoKeyMap(fields);
 
     var records = (data.features || []).filter(function (f) {
       var a = f.attributes || {};
@@ -199,9 +362,36 @@
       records.map(async function (feature) {
         var attrs = feature.attributes;
         var objectId = getField(attrs, oidField);
-        var images = await fetchImageUrls(layerUrl, objectId, signal);
+
+        var attachments = await fetchAttachments(layerUrl, objectId, signal);
+        var panoAttachment = pickPanorama(
+          attachments,
+          readPanoField(attrs, keyMap.image, PANO_FIELD_CANDIDATES)
+        );
+
+        // Οι κανονικές φωτογραφίες δεν περιλαμβάνουν την πανοραμική.
+        var photos = attachments
+          .filter(function (a) { return !panoAttachment || a.id !== panoAttachment.id; })
+          .slice(0, MAX_IMAGES)
+          .map(function (a) { return a.url; });
+
+        var hotspots = PANO.signs
+          .map(function (def, index) {
+            var text = readPanoField(attrs, keyMap.texts[index], [def.field, "field_" + def.field]);
+            if (!text) return null;
+            return {
+              index: index,
+              label: def.label,
+              yaw: def.yaw,
+              pitch: PANO.pitch,
+              text: text
+            };
+          })
+          .filter(Boolean);
+
         var location = findLocation(attrs);
         var coords = readCoords(feature.geometry);
+
         return {
           id: objectId,
           name: pick(attrs, FIELD_NAMES.name),
@@ -212,7 +402,8 @@
           siteUrl: normalizeUrl(pick(attrs, FIELD_NAMES.site)),
           location: location,
           mapUrl: buildMapUrl(location, coords),
-          images: images
+          images: photos,
+          pano: panoAttachment ? { url: panoAttachment.url, hotspots: hotspots } : null
         };
       })
     );
@@ -437,7 +628,421 @@
   }
 
   /* ------------------------------------------------------------------------ */
-  /*  MODAL (Επισκόπηση + καρτέλα 3D)                                         */
+  /*  360° — ΚΕΝΤΡΙΚΟΣ PANNELLUM VIEWER                                       */
+  /* ------------------------------------------------------------------------ */
+
+  var panoHost = byId("c4a-pano-host");
+  var panoStateEl = byId("c4a-pano-state");
+  var panoTitleEl = byId("c4a-pano-title");
+  var panoTextEl = byId("c4a-pano-text");
+  var panoRetryBtn = byId("c4a-pano-retry");
+  var legacyLink = byId("c4a-newtab");
+
+  var viewer = null;        // ΜΟΝΟ ένας viewer κάθε φορά
+  var viewerToken = 0;      // ακυρώνει ασύγχρονες απαντήσεις παλιών επιχειρήσεων
+  var panoHotspots = [];    // hotspots του ενεργού viewer
+  var activeSign = null;
+  var popupEl = null;
+  var popupBodyEl = null;
+  var popupLabelEl = null;
+  var libPromise = null;
+
+  function showPanoState(kind, title, text, retry) {
+    panoStateEl.hidden = false;
+    panoStateEl.className = "pano__state pano__state--" + kind;
+    panoTitleEl.textContent = title || "";
+    panoTextEl.textContent = text || "";
+    panoRetryBtn.hidden = !retry;
+  }
+
+  function hidePanoState() {
+    panoStateEl.hidden = true;
+  }
+
+  function exitNativeFullscreen() {
+    try {
+      var el = document.fullscreenElement || document.webkitFullscreenElement;
+      if (!el) return;
+      if (document.exitFullscreen) document.exitFullscreen();
+      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    } catch (e) { /* αγνοείται */ }
+  }
+
+  function destroyViewer() {
+    activeSign = null;
+    popupEl = null;
+    popupBodyEl = null;
+    popupLabelEl = null;
+    panoHotspots = [];
+
+    if (viewer) {
+      try { viewer.destroy(); } catch (e) { /* αγνοείται */ }
+      viewer = null;
+    }
+    if (panoHost) panoHost.replaceChildren();
+  }
+
+  /* --- Φόρτωση Pannellum (μία φορά, on demand) ---------------------------- */
+
+  function ensurePannellum() {
+    if (window.pannellum && typeof window.pannellum.viewer === "function") {
+      return Promise.resolve();
+    }
+    if (libPromise) return libPromise;
+
+    libPromise = new Promise(function (resolve, reject) {
+      var settled = false;
+      var timer = setTimeout(function () {
+        fail("timeout");
+      }, PANO.libTimeoutMs);
+
+      function fail(reason) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        libPromise = null;
+        var err = new Error("pannellum " + reason);
+        err.code = "lib";
+        reject(err);
+      }
+
+      function done() {
+        if (settled) return;
+        if (!window.pannellum || typeof window.pannellum.viewer !== "function") {
+          fail("missing");
+          return;
+        }
+        settled = true;
+        clearTimeout(timer);
+        resolve();
+      }
+
+      if (!document.querySelector('link[data-c4a-pannellum]')) {
+        var link = document.createElement("link");
+        link.rel = "stylesheet";
+        link.href = PANO.css;
+        link.setAttribute("data-c4a-pannellum", "css");
+        document.head.appendChild(link);
+      }
+
+      var existing = document.querySelector('script[data-c4a-pannellum]');
+      if (existing) {
+        existing.addEventListener("load", done);
+        existing.addEventListener("error", function () { fail("error"); });
+        return;
+      }
+
+      var script = document.createElement("script");
+      script.src = PANO.js;
+      script.async = true;
+      script.setAttribute("data-c4a-pannellum", "js");
+      script.addEventListener("load", done);
+      script.addEventListener("error", function () { fail("error"); });
+      document.head.appendChild(script);
+    });
+
+    return libPromise;
+  }
+
+  // Προφόρτωση της εικόνας: πιάνει 404 / δίκτυο / μη έγκυρο αρχείο πριν
+  // δημιουργηθεί ο viewer, ώστε να μη μείνει ποτέ άδειο ή σπασμένο πλαίσιο.
+  function preloadImage(url) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      var done = false;
+      var timer = setTimeout(function () {
+        if (done) return;
+        done = true;
+        img.src = "";
+        var err = new Error("image timeout");
+        err.code = "image";
+        reject(err);
+      }, PANO.imageTimeoutMs);
+
+      img.onload = function () {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        resolve();
+      };
+      img.onerror = function () {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        var err = new Error("image error");
+        err.code = "image";
+        reject(err);
+      };
+      img.src = url;
+    });
+  }
+
+  /* --- Σήματα πληροφοριών ------------------------------------------------ */
+
+  function signGlyph() {
+    var span = document.createElement("span");
+    span.className = "c4a-sign__glyph";
+    span.setAttribute("aria-hidden", "true");
+    // Στατικό SVG — καμία πληροφορία χρήστη δεν μπαίνει ως HTML.
+    span.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">' +
+      '<rect x="3.75" y="4.75" width="16.5" height="14.5" rx="2.2"/>' +
+      '<path stroke-linecap="round" d="M7.5 9h9M7.5 12.5h5.5"/>' +
+      "</svg>";
+    return span;
+  }
+
+  // createTooltipFunc του Pannellum: χτίζει το ορατό «σήμα» του hotspot.
+  function createSignElement(hotspotDiv, args) {
+    var sign = document.createElement("button");
+    sign.type = "button";
+    sign.className = "c4a-sign";
+    sign.setAttribute("data-sign-index", String(args.index));
+    sign.setAttribute("aria-label", "Άνοιγμα πληροφοριών: " + args.label);
+
+    sign.appendChild(signGlyph());
+    sign.appendChild(make("span", "c4a-sign__direction", args.label));
+    sign.appendChild(make("span", "c4a-sign__caption", "Πληροφορίες"));
+    sign.appendChild(make("span", "c4a-sign__hint", "Πατήστε"));
+
+    // Το κλικ δεν φτάνει στο hotspot div (άρα δεν υπάρχει διπλό άνοιγμα)
+    // και δεν ξεκινά σύρσιμο του πανοράματος.
+    sign.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleSign(args.index);
+    });
+    sign.addEventListener("mousedown", function (e) { e.stopPropagation(); });
+    sign.addEventListener("touchstart", function (e) { e.stopPropagation(); }, { passive: true });
+    sign.addEventListener("keydown", function (e) { e.stopPropagation(); });
+
+    hotspotDiv.appendChild(sign);
+  }
+
+  function buildHotspots(business) {
+    return (business.pano.hotspots || []).map(function (hs) {
+      return {
+        id: "c4a-sign-" + hs.index,
+        pitch: hs.pitch,
+        yaw: hs.yaw,
+        type: "info",
+        cssClass: "c4a-hotspot",
+        createTooltipFunc: createSignElement,
+        createTooltipArgs: { index: hs.index, label: hs.label }
+      };
+    });
+  }
+
+  /* --- Παράθυρο πληροφοριών (μέσα στο container του Pannellum) ----------- */
+
+  function installPopup(container) {
+    var pop = make("div", "c4a-pop");
+    pop.hidden = true;
+    pop.setAttribute("role", "dialog");
+    pop.setAttribute("aria-modal", "false");
+    pop.setAttribute("aria-label", "Πληροφορίες σήματος");
+
+    var head = make("div", "c4a-pop__head");
+    var label = make("span", "c4a-pop__label");
+    var close = make("button", "c4a-pop__close", "\u00d7");
+    close.type = "button";
+    close.setAttribute("aria-label", "Κλείσιμο πληροφοριών");
+    head.appendChild(label);
+    head.appendChild(close);
+
+    var body = make("div", "c4a-pop__body");
+    body.id = "c4a-sign-panel-body";
+
+    pop.appendChild(head);
+    pop.appendChild(body);
+    container.appendChild(pop);
+
+    // Το παράθυρο δεν πρέπει να μετακινεί/ζουμάρει το πανόραμα.
+    ["pointerdown", "mousedown", "touchstart", "touchmove", "wheel", "click", "dblclick"].forEach(function (type) {
+      pop.addEventListener(type, function (e) {
+        e.stopPropagation();
+      }, type === "wheel" || type === "touchmove" ? { passive: true } : false);
+    });
+
+    close.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      closeSign();
+    });
+
+    popupEl = pop;
+    popupLabelEl = label;
+    popupBodyEl = body;
+  }
+
+  function markSigns() {
+    if (!viewer) return;
+    var container = viewer.getContainer();
+    if (!container) return;
+    var signs = container.querySelectorAll(".c4a-sign");
+    Array.prototype.forEach.call(signs, function (el) {
+      var index = Number(el.getAttribute("data-sign-index"));
+      el.classList.toggle("is-active", activeSign === index);
+      el.setAttribute("aria-expanded", String(activeSign === index));
+    });
+  }
+
+  function toggleSign(index) {
+    if (!viewer || !popupEl) return;
+    var hs = panoHotspots[index];
+    if (!hs) return;
+
+    if (activeSign === index && !popupEl.hidden) {
+      closeSign();
+      return;
+    }
+
+    popupLabelEl.textContent = "Πληροφορίες · " + hs.label;
+    popupBodyEl.textContent = hs.text;
+    popupBodyEl.scrollTop = 0;
+    popupEl.hidden = false;
+    activeSign = index;
+    markSigns();
+  }
+
+  function closeSign() {
+    if (!popupEl) return;
+    popupEl.hidden = true;
+    popupBodyEl.textContent = "";
+    activeSign = null;
+    markSigns();
+  }
+
+  /* --- Δημιουργία / επαναχρήση του viewer -------------------------------- */
+
+  function buildViewer(business, token) {
+    if (token !== viewerToken) return;
+
+    try {
+      viewer = window.pannellum.viewer(panoHost, {
+        type: "equirect",
+        panorama: business.pano.url,
+        autoLoad: true,
+        compass: false,
+        showZoomCtrl: true,
+        showFullscreenCtrl: true,
+        mouseZoom: true,
+        draggable: true,
+        hfov: 100,
+        minHfov: 45,
+        maxHfov: 120,
+        friction: 0.15,
+        strings: {
+          loadingLabel: "Φόρτωση 360° χώρου…",
+          fullscreen: "Πλήρης οθόνη",
+          zoomIn: "Μεγέθυνση",
+          zoomOut: "Σμίκρυνση"
+        },
+        hotSpots: buildHotspots(business)
+      });
+    } catch (e) {
+      destroyViewer();
+      showPanoState(
+        "error",
+        "Δεν φορτώθηκε ο 360° χώρος",
+        "Η προβολή δεν μπόρεσε να ξεκινήσει. Δοκιμάστε ξανά.",
+        true
+      );
+      return;
+    }
+
+    panoHotspots = (business.pano.hotspots || []).slice();
+    installPopup(viewer.getContainer());
+
+    var loaded = false;
+    var loadTimer = setTimeout(function () {
+      if (loaded || token !== viewerToken) return;
+      destroyViewer();
+      showPanoState(
+        "error",
+        "Δεν φορτώθηκε η πανοραμική εικόνα",
+        "Η εικόνα άργησε να φορτώσει. Ελέγξτε τη σύνδεσή σας και δοκιμάστε ξανά.",
+        true
+      );
+    }, PANO.loadTimeoutMs);
+
+    viewer.on("load", function () {
+      if (token !== viewerToken) return;
+      loaded = true;
+      clearTimeout(loadTimer);
+      hidePanoState();
+    });
+
+    // Το Pannellum μπορεί να αναφέρει σφάλμα εικόνας και μόνο του.
+    try {
+      viewer.on("error", function () {
+        if (loaded || token !== viewerToken) return;
+        clearTimeout(loadTimer);
+        destroyViewer();
+        showPanoState(
+          "error",
+          "Δεν φορτώθηκε η πανοραμική εικόνα",
+          "Το αρχείο δεν είναι έγκυρη πανοραμική εικόνα ή δεν είναι προσβάσιμο.",
+          true
+        );
+      });
+    } catch (e) { /* παλιές εκδόσεις Pannellum χωρίς event */ }
+  }
+
+  function openPanorama(business) {
+    var token = ++viewerToken;
+    destroyViewer();
+
+    if (!business || !business.pano || !business.pano.url) {
+      showPanoState(
+        "empty",
+        "Δεν υπάρχει 360° χώρος",
+        "Η επιχείρηση δεν έχει ακόμα διαθέσιμη πανοραμική εικόνα 360°.",
+        false
+      );
+      return;
+    }
+
+    showPanoState("loading", "Φόρτωση 360° χώρου…", "Η πανοραμική εικόνα φορτώνεται.", false);
+
+    ensurePannellum()
+      .then(function () {
+        if (token !== viewerToken) return null;
+        return preloadImage(business.pano.url);
+      })
+      .then(function () {
+        if (token !== viewerToken) return;
+        buildViewer(business, token);
+      })
+      .catch(function (err) {
+        if (token !== viewerToken) return;
+        if (err && err.code === "lib") {
+          showPanoState(
+            "error",
+            "Ο 360° χώρος δεν είναι διαθέσιμος",
+            "Δεν φορτώθηκε η βιβλιοθήκη προβολής. Ελέγξτε τη σύνδεσή σας και δοκιμάστε ξανά.",
+            true
+          );
+        } else if (err && err.code === "image") {
+          showPanoState(
+            "error",
+            "Δεν φορτώθηκε η πανοραμική εικόνα",
+            "Η εικόνα δεν είναι διαθέσιμη ή δεν είναι έγκυρη πανοραμική λήψη.",
+            true
+          );
+        } else {
+          showPanoState(
+            "error",
+            "Δεν φορτώθηκε ο 360° χώρος",
+            "Κάτι πήγε στραβά κατά τη φόρτωση. Δοκιμάστε ξανά.",
+            true
+          );
+        }
+      });
+  }
+
+  /* ------------------------------------------------------------------------ */
+  /*  MODAL (Επισκόπηση + 360° καρτέλα)                                       */
   /* ------------------------------------------------------------------------ */
 
   var modal = byId("c4a-modal");
@@ -459,12 +1064,10 @@
   var accessText = byId("c4a-access-text");
   var siteLink = byId("c4a-site");
   var emptyEl = byId("c4a-empty");
-  var frame = byId("c4a-frame");
-  var newTab = byId("c4a-newtab");
 
   var lastTrigger = null;
   var currentBusiness = null;
-  var frameLoaded = false;
+  var currentTab = "info";
 
   // Η προσβασιμότητα εμφανίζεται ως κείμενο (οι αλλαγές γραμμής διατηρούνται).
   function renderAccessibility(text) {
@@ -473,8 +1076,50 @@
     return value ? 1 : 0;
   }
 
+  function resizeViewerSoon() {
+    if (!viewer) return;
+    setTimeout(function () {
+      if (!viewer) return;
+      try { viewer.resize(); } catch (e) { /* αγνοείται */ }
+    }, 90);
+  }
+
+  function stop3d() {
+    viewerToken++; // ακυρώνει εκκρεμείς φορτώσεις
+    destroyViewer();
+    popupEl = null;
+    hidePanoState();
+  }
+
+  function start3d(business) {
+    if (!business) return;
+
+    if (business.xrLink) {
+      legacyLink.href = business.xrLink;
+      legacyLink.hidden = false;
+    } else {
+      legacyLink.hidden = true;
+      legacyLink.removeAttribute("href");
+    }
+
+    if (business.pano) {
+      openPanorama(business);
+    } else {
+      destroyViewer();
+      showPanoState(
+        "empty",
+        "Δεν υπάρχει 360° χώρος",
+        "Η επιχείρηση δεν έχει ακόμα διαθέσιμη πανοραμική εικόνα 360°." +
+          (business.xrLink ? " Μπορείτε να ανοίξετε τον παλιό 3D χώρο από τον σύνδεσμο παρακάτω." : ""),
+        false
+      );
+    }
+  }
+
   function selectTab(which, moveFocus) {
     var is3d = which === "3d";
+    currentTab = which;
+
     tabInfo.setAttribute("aria-selected", String(!is3d));
     tabInfo.tabIndex = is3d ? -1 : 0;
     tab3d.setAttribute("aria-selected", String(is3d));
@@ -482,12 +1127,13 @@
     panelInfo.hidden = is3d;
     panel3d.hidden = !is3d;
 
-    // Το iframe φορτώνεται μόνο όταν ανοίξει η καρτέλα 3D.
-    if (is3d && currentBusiness && currentBusiness.xrLink && !frameLoaded) {
-      frame.title = "Διαδραστικός 3D χώρος: " + currentBusiness.name;
-      frame.src = currentBusiness.xrLink; // από το πεδίο city4all_xr_link
-      frameLoaded = true;
-    }
+    modal.classList.toggle("modal--immersive", is3d);
+
+    // Ο viewer υπάρχει μόνο όσο είναι ανοιχτή η καρτέλα 360°.
+    if (is3d) start3d(currentBusiness);
+    else stop3d();
+
+    resizeViewerSoon();
     if (moveFocus) (is3d ? tab3d : tabInfo).focus();
   }
 
@@ -505,11 +1151,66 @@
     }
   });
 
+  /* --------------------- Επικοινωνία με τη γονική σελίδα ------------------ */
+
+  function isEmbedded() {
+    try {
+      return window.parent && window.parent !== window;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function parentTargetOrigin() {
+    if (EMBED.targetOrigin) return EMBED.targetOrigin;
+    try {
+      if (document.referrer) return new URL(document.referrer).origin;
+    } catch (e) { /* αγνοείται */ }
+    return "*";
+  }
+
+  function originAllowed(origin) {
+    if (EMBED.allowedOrigins.length) return EMBED.allowedOrigins.indexOf(origin) !== -1;
+    var target = parentTargetOrigin();
+    return target === "*" ? true : origin === target;
+  }
+
+  function postToParent(type) {
+    if (!isEmbedded()) return;
+    try {
+      window.parent.postMessage(
+        { source: EMBED.source, type: type, version: 1 },
+        parentTargetOrigin()
+      );
+    } catch (e) { /* αγνοείται */ }
+  }
+
+  window.addEventListener("message", function (e) {
+    if (!e.data || e.data.source !== EMBED.parentSource) return;
+    if (!originAllowed(e.origin)) return;
+    if (e.data.type === "expanded") {
+      document.documentElement.classList.add("is-embedded-expanded");
+      resizeViewerSoon();
+    } else if (e.data.type === "collapsed") {
+      document.documentElement.classList.remove("is-embedded-expanded");
+      resizeViewerSoon();
+    }
+  });
+
+  // Το native fullscreen αλλάζει το μέγεθος του container.
+  ["fullscreenchange", "webkitfullscreenchange"].forEach(function (evt) {
+    document.addEventListener(evt, function () {
+      resizeViewerSoon();
+      setTimeout(resizeViewerSoon, 260);
+    });
+  });
+
+  /* ------------------------------- Άνοιγμα ------------------------------- */
+
   function openModal(business, trigger) {
     lastTrigger = trigger || null;
     currentBusiness = business;
-    frameLoaded = false;
-    frame.removeAttribute("src");
+    currentTab = "info";
 
     // Φωτογραφίες στην κορυφή
     clearList(modalTimers);
@@ -558,28 +1259,42 @@
       business.siteUrl
     );
 
-    // Καρτέλα 3D: εμφανίζεται μόνο αν υπάρχει σύνδεσμος
-    if (business.xrLink) {
-      newTab.href = business.xrLink;
-      tabsEl.hidden = false;
-    } else {
-      tabsEl.hidden = true;
-    }
-    selectTab("info", false);
+    // Καρτέλα 360°: εμφανίζεται μόνο αν υπάρχει πανόραμα ή παλιός 3D σύνδεσμος
+    tabsEl.hidden = !(business.pano || business.xrLink);
+
+    legacyLink.hidden = !business.xrLink;
+    if (business.xrLink) legacyLink.href = business.xrLink;
+    else legacyLink.removeAttribute("href");
 
     modal.hidden = false;
+    modal.classList.add("modal--expanded");
     document.body.classList.add("modal-open");
+
+    // Ζητά από τη γονική σελίδα να μεγαλώσει το iframe σε όλο το viewport.
+    postToParent("expand");
+
+    selectTab("info", false);
     closeBtn.focus();
   }
 
   function closeModal() {
     if (modal.hidden) return;
+
+    // Αν ο χρήστης είναι σε native fullscreen, βγαίνουμε πρώτα από αυτό.
+    exitNativeFullscreen();
+
+    stop3d();
     modal.hidden = true;
-    frame.src = "about:blank"; // σταματάει ο 3D χώρος
-    frameLoaded = false;
-    currentBusiness = null;
-    clearList(modalTimers);
+    modal.classList.remove("modal--immersive");
+    modal.classList.remove("modal--expanded");
     document.body.classList.remove("modal-open");
+    clearList(modalTimers);
+    banner.replaceChildren();
+    currentBusiness = null;
+
+    // Ενημερώνει τη γονική σελίδα να επαναφέρει το iframe.
+    postToParent("collapse");
+
     if (lastTrigger && typeof lastTrigger.focus === "function") lastTrigger.focus();
     lastTrigger = null;
   }
@@ -588,8 +1303,16 @@
   modal.addEventListener("click", function (e) {
     if (e.target === modal) closeModal(); // κλικ στο σκοτεινό φόντο
   });
+
   document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape") closeModal();
+    if (e.key !== "Escape") return;
+    // Στο native fullscreen το Escape κλείνει μόνο την πλήρη οθόνη.
+    if (document.fullscreenElement || document.webkitFullscreenElement) return;
+    closeModal();
+  });
+
+  panoRetryBtn.addEventListener("click", function () {
+    if (currentBusiness) start3d(currentBusiness);
   });
 
   /* ------------------------------------------------------------------------ */
