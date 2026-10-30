@@ -297,6 +297,46 @@
       box-shadow: 0 25px 60px rgba(0, 0, 0, .55);
     }
 
+    /* ---- Expanded (parent iframe έγινε viewport-sized) / immersive 3D ---- */
+    .modal--expanded { padding: 0; }
+    .modal--expanded .modal__dialog {
+      max-width: 100%;
+      height: 100%;
+      max-height: 100%;
+      border-radius: 0;
+      border: 0;
+    }
+    @media (min-width: 992px) {
+      .modal--expanded { padding: 1.25rem; }
+      .modal--expanded .modal__dialog {
+        max-width: 74rem;
+        height: calc(100% - 1rem);
+        border-radius: 1.5rem;
+        border: 1px solid var(--line);
+      }
+    }
+    .modal--immersive .modal__banner { display: none; }
+    .modal--immersive .modal__tagline { display: none; }
+    .modal--immersive .modal__scroll {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      padding: 1rem 1rem 1rem;
+      overflow: hidden;
+    }
+    .modal--immersive .modal__title { font-size: 1.35rem; padding-right: 3rem; }
+    .modal--immersive #c4a-tabs { flex: 0 0 auto; margin-top: .9rem; }
+    .modal--immersive #c4a-panel-3d {
+      display: flex;
+      flex: 1 1 auto;
+      flex-direction: column;
+      min-height: 0;
+      margin-top: .9rem;
+    }
+    @media (min-width: 640px) {
+      .modal--immersive .modal__scroll { padding: 1.25rem 1.5rem 1.5rem; }
+    }
+
     .modal__close {
       position: absolute;
       top: .75rem;
@@ -417,35 +457,328 @@
     .btn-link:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
     .modal__empty { margin: 0; color: var(--text-mute); }
 
-    /* 3D viewport (inside its tab) */
-    .viewport {
+    /* ==================================================================== */
+    /*  360° ΠΕΡΙΟΧΗ (κεντρικό Pannellum)                                   */
+    /* ==================================================================== */
+    .pano {
       position: relative;
       width: 100%;
-      height: 55vh;
-      min-height: 18rem;
-      max-height: 34rem;
+      height: clamp(18rem, 55vh, 34rem);
       overflow: hidden;
       border: 1px solid var(--line);
       border-radius: 1rem;
       background: #060b12;
+      isolation: isolate; /* κρατά τα z-index των σημάτων/παραθύρου τοπικά */
     }
-    .viewport iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+    .modal--immersive .pano {
+      flex: 1 1 auto;
+      height: auto;
+      min-height: 12rem;
+      border-radius: .9rem;
+    }
+
+    .pano__host { position: absolute; inset: 0; }
+    .pano__host .pnlm-container { font-family: 'Segoe UI', Roboto, Arial, sans-serif; }
+
+    /* Κατάσταση: φόρτωση / κενό / σφάλμα */
+    .pano__state {
+      position: absolute;
+      inset: 0;
+      z-index: 6;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: .55rem;
+      padding: 2rem 1.5rem;
+      text-align: center;
+      background: radial-gradient(120% 120% at 50% 0%, rgba(29, 78, 216, .18), rgba(6, 11, 18, .96) 65%);
+      color: var(--text-soft);
+    }
+    .pano__state-title {
+      margin: 0;
+      color: var(--white);
+      font-size: 1.02rem;
+      font-weight: 600;
+      letter-spacing: -.2px;
+    }
+    .pano__state-text {
+      margin: 0;
+      max-width: 30rem;
+      font-size: .875rem;
+      line-height: 1.6;
+      color: var(--text-soft);
+    }
+    .pano__state--error .pano__state-title { color: #fee2e2; }
+    .pano__state--error { background: radial-gradient(120% 120% at 50% 0%, rgba(248, 113, 113, .14), rgba(6, 11, 18, .97) 65%); }
+
+    .pano__spinner {
+      width: 1.9rem;
+      height: 1.9rem;
+      margin-bottom: .35rem;
+      border: 2px solid rgba(134, 201, 158, .20);
+      border-top-color: var(--green);
+      border-radius: 50%;
+      animation: c4a-spin .9s linear infinite;
+    }
+    .pano__state:not(.pano__state--loading) .pano__spinner { display: none; }
+    @keyframes c4a-spin { to { transform: rotate(360deg); } }
+
+    .pano__glyph {
+      width: 2.75rem;
+      height: 2.75rem;
+      margin-bottom: .35rem;
+      padding: .6rem;
+      border-radius: 50%;
+      border: 1px solid rgba(134, 201, 158, .30);
+      background: rgba(21, 128, 61, .16);
+      color: var(--green);
+    }
+    .pano__state--loading .pano__glyph { display: none; }
+
+    .pano__retry {
+      margin-top: .9rem;
+      padding: .55rem 1.15rem;
+      border: 1px solid rgba(134, 201, 158, .45);
+      border-radius: .6rem;
+      background: rgba(21, 128, 61, .9);
+      color: var(--white);
+      font: inherit;
+      font-size: .85rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .pano__retry:hover { background: #16a34a; }
+    .pano__retry:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
+
+    /* ------------------- Σήματα πληροφοριών (hotspots) ------------------- */
+    /* Το Pannellum βάζει το cssClass πάνω στο hotspot div (και το .pnlm-sprite). */
+    .pnlm-hotspot.c4a-hotspot,
+    .c4a-hotspot.pnlm-sprite {
+      width: auto;
+      height: auto;
+      background-image: none !important;
+      background-color: transparent !important;
+      outline: none;
+      z-index: 12;
+    }
+
+    .c4a-sign {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: .3rem;
+      width: clamp(4.6rem, 7.2vw, 5.9rem);
+      min-height: clamp(5.6rem, 9vw, 7rem);
+      padding: .7rem .55rem .6rem;
+      border: 1px solid rgba(134, 201, 158, .38);
+      border-radius: .85rem;
+      background:
+        linear-gradient(165deg, rgba(20, 36, 56, .93), rgba(9, 18, 30, .90));
+      box-shadow: 0 12px 30px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .09);
+      backdrop-filter: blur(7px);
+      -webkit-backdrop-filter: blur(7px);
+      color: var(--white);
+      font: inherit;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+      animation: c4a-sign-in .38s ease-out both;
+    }
+    .c4a-sign::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto 0;
+      height: 3px;
+      border-radius: .85rem .85rem 0 0;
+      background: linear-gradient(90deg, var(--blue), #1c6a8a 55%, var(--green-brand));
+      opacity: .9;
+    }
+    .c4a-sign::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: radial-gradient(120% 90% at 50% 0%, rgba(134, 201, 158, .16), transparent 60%);
+      opacity: 0;
+      transition: opacity .22s ease;
+      pointer-events: none;
+    }
+    .c4a-sign:hover,
+    .c4a-sign:focus-visible {
+      transform: translateY(-3px);
+      border-color: rgba(134, 201, 158, .8);
+      box-shadow: 0 18px 38px rgba(0, 0, 0, .55), 0 0 0 1px rgba(134, 201, 158, .25);
+      outline: none;
+    }
+    .c4a-sign:hover::after,
+    .c4a-sign:focus-visible::after,
+    .c4a-sign.is-active::after { opacity: 1; }
+    .c4a-sign:active { transform: translateY(-1px) scale(.985); }
+    .c4a-sign.is-active {
+      border-color: var(--green);
+      box-shadow: 0 18px 38px rgba(0, 0, 0, .55), 0 0 0 2px rgba(134, 201, 158, .35);
+    }
+
+    .c4a-sign__glyph {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.55rem;
+      height: 1.55rem;
+      color: var(--green);
+    }
+    .c4a-sign__glyph svg { width: 100%; height: 100%; display: block; }
+
+    .c4a-sign__direction {
+      font-size: .82rem;
+      font-weight: 600;
+      letter-spacing: -.1px;
+      line-height: 1.15;
+      text-align: center;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, .4);
+    }
+    .c4a-sign__caption {
+      font-size: .53rem;
+      font-weight: 600;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: rgba(198, 213, 225, .72);
+      line-height: 1.1;
+    }
+    .c4a-sign__hint {
+      font-size: .58rem;
+      letter-spacing: .02em;
+      color: rgba(134, 201, 158, .85);
+      line-height: 1.1;
+    }
+    @keyframes c4a-sign-in {
+      from { opacity: 0; transform: translateY(6px) scale(.96); }
+      to { opacity: 1; transform: none; }
+    }
+
+    /* ------------------- Παράθυρο πληροφοριών (in-viewer) ---------------- */
+    /* ΜΕΣΑ στο container του Pannellum: έτσι παραμένει ορατό και στο native
+       fullscreen, όπου το container γίνεται το fullscreen element. */
+    .c4a-pop {
+      position: absolute;
+      left: 50%;
+      bottom: .85rem;
+      transform: translateX(-50%);
+      z-index: 40;
+      display: flex;
+      flex-direction: column;
+      width: min(32rem, calc(100% - 1.5rem));
+      max-height: min(58%, 22rem);
+      overflow: hidden;
+      border: 1px solid rgba(134, 201, 158, .32);
+      border-radius: 1rem;
+      background: rgba(9, 17, 28, .95);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      box-shadow: 0 24px 48px rgba(0, 0, 0, .6);
+      color: var(--text);
+      animation: c4a-pop-in .26s ease-out both;
+    }
+    @media (min-width: 700px) {
+      .c4a-pop { width: min(32rem, calc(100% - 10rem)); bottom: 1rem; }
+    }
+    .c4a-pop[hidden] { display: none !important; }
+
+    .c4a-pop__head {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      padding: .8rem 1rem .7rem 1.05rem;
+      border-bottom: 1px solid rgba(255, 255, 255, .08);
+      background: linear-gradient(90deg, rgba(29, 78, 216, .18), rgba(21, 128, 61, .12));
+      flex: 0 0 auto;
+    }
+    .c4a-pop__label {
+      flex: 1;
+      min-width: 0;
+      font-size: .68rem;
+      font-weight: 600;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--green);
+    }
+    .c4a-pop__close {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.25rem;
+      height: 2.25rem;
+      margin: -.25rem -.25rem -.25rem 0;
+      border: 1px solid rgba(255, 255, 255, .18);
+      border-radius: 50%;
+      background: rgba(255, 255, 255, .06);
+      color: var(--white);
+      font: inherit;
+      font-size: 1.15rem;
+      line-height: 1;
+      cursor: pointer;
+      transition: background .18s ease, border-color .18s ease;
+    }
+    .c4a-pop__close:hover { background: rgba(21, 128, 61, .75); border-color: rgba(134, 201, 158, .5); }
+    .c4a-pop__close:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
+
+    .c4a-pop__body {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      padding: .95rem 1.15rem 1.15rem;
+      font-size: .925rem;
+      line-height: 1.7;
+      color: var(--text);
+      white-space: pre-line;
+      overflow-wrap: anywhere;
+      user-select: text;
+      -webkit-user-select: text;
+      scrollbar-color: rgba(134, 201, 158, .45) transparent;
+      overscroll-behavior: contain;
+    }
+    @keyframes c4a-pop-in {
+      from { opacity: 0; transform: translate(-50%, 8px); }
+      to { opacity: 1; transform: translate(-50%, 0); }
+    }
+
     .modal__newtab {
       display: inline-block;
-      margin-top: 1rem;
-      font-size: .875rem;
+      align-self: flex-start;
+      margin-top: .8rem;
+      font-size: .82rem;
       font-weight: 600;
       color: var(--green);
     }
+    .modal--immersive .modal__newtab { flex: 0 0 auto; }
 
     @media (max-width: 600px) {
       .wall__title { letter-spacing: -.6px; }
       .card { flex-basis: 19rem; width: 19rem; }
+      .modal--expanded .modal__dialog { border-radius: 0; }
+      .c4a-sign {
+        width: 4.3rem;
+        min-height: 5.2rem;
+        gap: .22rem;
+        padding: .55rem .4rem .5rem;
+      }
+      .c4a-sign__glyph { width: 1.3rem; height: 1.3rem; }
+      .c4a-sign__direction { font-size: .72rem; }
+      .c4a-sign__caption { font-size: .48rem; }
+      .c4a-sign__hint { display: none; }
+      .c4a-pop { max-height: 52%; }
+      .c4a-pop__body { font-size: .875rem; }
     }
 
     @media (prefers-reduced-motion: reduce) {
       .carousel { scroll-behavior: auto; }
       .card, .card--skeleton { transition: none; animation: none; }
+      .c4a-sign, .c4a-pop { animation: none; transition: none; }
+      .pano__spinner { animation-duration: 2.4s; }
     }
   </style>
 </head>
@@ -475,7 +808,7 @@
 
         <div id="c4a-tabs" class="tabs" role="tablist" aria-label="Ενότητες" hidden>
           <button type="button" role="tab" id="c4a-tab-info" class="tab" aria-selected="true" aria-controls="c4a-panel-info">Επισκόπηση</button>
-          <button type="button" role="tab" id="c4a-tab-3d" class="tab" aria-selected="false" aria-controls="c4a-panel-3d" tabindex="-1">3D χώρος</button>
+          <button type="button" role="tab" id="c4a-tab-3d" class="tab" aria-selected="false" aria-controls="c4a-panel-3d" tabindex="-1">360° χώρος</button>
         </div>
 
         <div id="c4a-panel-info" class="panel" role="tabpanel" aria-labelledby="c4a-tab-info">
@@ -501,20 +834,27 @@
         </div>
 
         <div id="c4a-panel-3d" class="panel" role="tabpanel" aria-labelledby="c4a-tab-3d" hidden>
-          <div class="viewport">
-            <iframe
-              id="c4a-frame"
-              title="Διαδραστικός 3D χώρος"
-              allow="xr-spatial-tracking; fullscreen; accelerometer; gyroscope; magnetometer; autoplay"
-              allowfullscreen
-              referrerpolicy="no-referrer-when-downgrade"></iframe>
+          <div id="c4a-pano" class="pano">
+            <!-- Εδώ δημιουργείται δυναμικά ο κεντρικός Pannellum viewer -->
+            <div id="c4a-pano-host" class="pano__host"></div>
+
+            <div id="c4a-pano-state" class="pano__state pano__state--loading" role="status" aria-live="polite">
+              <div class="pano__spinner" aria-hidden="true"></div>
+              <svg class="pano__glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true">
+                <circle cx="12" cy="12" r="8.25" />
+                <path stroke-linecap="round" d="M12 3.75v16.5M3.75 12h16.5M6.2 6.2c3.2 3.1 8.4 3.1 11.6 0M6.2 17.8c3.2-3.1 8.4-3.1 11.6 0" />
+              </svg>
+              <p id="c4a-pano-title" class="pano__state-title">Φόρτωση 360° χώρου…</p>
+              <p id="c4a-pano-text" class="pano__state-text">Η πανοραμική εικόνα φορτώνεται.</p>
+              <button type="button" id="c4a-pano-retry" class="pano__retry" hidden>Δοκιμάστε ξανά</button>
+            </div>
           </div>
-          <a id="c4a-newtab" class="modal__newtab" target="_blank" rel="noopener noreferrer">Άνοιγμα του 3D χώρου σε νέα καρτέλα &#8599;</a>
+          <a id="c4a-newtab" class="modal__newtab" target="_blank" rel="noopener noreferrer" hidden>Άνοιγμα του 3D χώρου σε νέα καρτέλα &#8599;</a>
         </div>
       </div>
     </div>
   </div>
 
-  <script src="wall.js?v=4" defer></script>
+  <script src="wall.js?v=5" defer></script>
 </body>
 </html>
