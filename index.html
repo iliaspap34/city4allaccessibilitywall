@@ -98,23 +98,25 @@
       height: 10rem;
       overflow: hidden;
       padding: 0;
-      border: 1px solid var(--line);
+      border: 1px solid #e2e8f0;
       border-radius: 1rem;
-      background: var(--panel);
-      color: var(--text);
+      background: #ffffff;
+      color: #0f1b2b;
       font: inherit;
       text-align: left;
       text-decoration: none;
       cursor: pointer;
+      box-shadow: 0 4px 14px rgba(4, 9, 16, .18);
       scroll-snap-align: start;
-      transition: transform .2s ease, background .2s ease, border-color .2s ease;
+      transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
     }
     .card:hover {
       transform: translateY(-2px);
-      background: var(--panel-hover);
-      border-color: rgba(134, 201, 158, .55);
+      background: #ffffff;
+      border-color: rgba(21, 128, 61, .45);
+      box-shadow: 0 12px 26px rgba(4, 9, 16, .26);
     }
-    .card:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
+    .card:focus-visible { outline: 3px solid var(--green-brand); outline-offset: 2px; }
 
     .card__body {
       flex: 1;
@@ -126,7 +128,7 @@
     }
     .card__title {
       margin: 0;
-      color: var(--white);
+      color: #0f1b2b;
       font-size: 1.05rem;
       font-weight: 600;
       letter-spacing: -.2px;
@@ -138,7 +140,7 @@
       margin: .3rem 0 0;
       font-size: .875rem;
       line-height: 1.45;
-      color: var(--text-soft);
+      color: #475569;
       display: -webkit-box;
       -webkit-line-clamp: 2;
       line-clamp: 2;
@@ -150,13 +152,13 @@
       font-size: .78rem;
       font-weight: 600;
       letter-spacing: .3px;
-      color: var(--green-soft);
+      color: var(--green-brand);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .card__cta { font-size: .875rem; font-weight: 600; color: var(--green); }
-    .card:hover .card__cta { color: var(--white); }
+    .card__cta { font-size: .875rem; font-weight: 600; color: var(--green-brand); }
+    .card:hover .card__cta { color: #0f1b2b; }
 
     /* --------------------- Image slideshow (fade) ------------------------ */
     .slideshow {
@@ -165,7 +167,7 @@
       width: 9rem;
       height: 100%;
       overflow: hidden;
-      background: rgba(255, 255, 255, .08);
+      background: #eef2f6;
     }
     .slide {
       position: absolute;
@@ -181,8 +183,8 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      color: var(--green-soft);
-      background: linear-gradient(135deg, rgba(29, 78, 216, .25), rgba(21, 128, 61, .25));
+      color: var(--green-brand);
+      background: linear-gradient(135deg, #e8f5ee, #d7ecdf);
     }
 
     /* ---------------------- "Add your business" card --------------------- */
@@ -193,11 +195,11 @@
       padding: 1.25rem;
       color: var(--white);
       border-color: transparent;
-      background: linear-gradient(135deg, var(--blue), #1c6a8a 50%, var(--green-brand));
+      background: linear-gradient(135deg, var(--green-brand), #16a34a 60%, #22c55e);
       scroll-snap-align: end;
     }
     .card--add:hover {
-      background: linear-gradient(135deg, var(--blue), #1c6a8a 50%, var(--green-brand));
+      background: linear-gradient(135deg, var(--green-brand), #16a34a 60%, #22c55e);
       border-color: rgba(255, 255, 255, .45);
     }
     .card--add:focus-visible { outline-color: #bbf7d0; }
@@ -224,6 +226,7 @@
     }
     .card--add .card__title {
       margin-top: .6rem;
+      color: var(--white);
       white-space: normal;
       font-size: 1.25rem;
       font-weight: 600;
@@ -234,11 +237,11 @@
 
     /* --------------------------- Loading skeleton ------------------------ */
     .card--skeleton { cursor: default; animation: pulse 1.5s ease-in-out infinite; }
-    .card--skeleton:hover { transform: none; background: var(--panel); border-color: var(--line); }
-    .sk-img { flex: 0 0 9rem; background: rgba(255, 255, 255, .08); }
+    .card--skeleton:hover { transform: none; background: #fff; border-color: #e2e8f0; }
+    .sk-img { flex: 0 0 9rem; background: #eef2f6; }
     .sk-lines { flex: 1; padding: 1rem; display: flex; flex-direction: column; gap: .75rem; }
-    .sk-line { height: .75rem; border-radius: .25rem; background: rgba(255, 255, 255, .06); }
-    .sk-line--title { height: 1rem; width: 75%; background: rgba(255, 255, 255, .12); }
+    .sk-line { height: .75rem; border-radius: .25rem; background: #eef2f6; }
+    .sk-line--title { height: 1rem; width: 75%; background: #e2e8f0; }
     .sk-line--short { width: 65%; }
     @keyframes pulse { 50% { opacity: .5; } }
 
@@ -277,8 +280,8 @@
       align-items: center;
       justify-content: center;
       padding: .75rem;
-      /* Αδιαφανές φόντο: πίσω από την κάρτα δεν φαίνεται καθόλου ο Τοίχος. */
-      background: #081120;
+      /* Αδιαφανές λευκό φόντο: πίσω από την κάρτα δεν φαίνεται καθόλου ο Τοίχος. */
+      background: #ffffff;
     }
 
     .modal__dialog {
@@ -289,11 +292,11 @@
       max-width: 50rem;
       max-height: 100%;
       overflow: hidden;
-      border: 1px solid var(--line);
+      border: 1px solid #e2e8f0;
       border-radius: 1.5rem;
-      background: var(--navy);
-      color: var(--text);
-      box-shadow: 0 25px 60px rgba(0, 0, 0, .55);
+      background: #ffffff;
+      color: #334155;
+      box-shadow: 0 25px 60px rgba(4, 9, 16, .28);
     }
 
     /* ---- Expanded: η κάρτα πιάνει ΟΛΟ το διαθέσιμο viewport ---- */
@@ -341,16 +344,17 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      border: 1px solid rgba(255, 255, 255, .25);
+      border: 1px solid rgba(15, 27, 43, .14);
       border-radius: 50%;
-      background: rgba(15, 27, 43, .75);
-      color: var(--white);
+      background: rgba(255, 255, 255, .92);
+      color: #0f1b2b;
       font-size: 1.5rem;
       line-height: 1;
+      box-shadow: 0 4px 14px rgba(4, 9, 16, .18);
       cursor: pointer;
     }
-    .modal__close:hover { background: rgba(21, 128, 61, .85); }
-    .modal__close:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
+    .modal__close:hover { background: var(--green-brand); border-color: var(--green-brand); color: #fff; }
+    .modal__close:focus-visible { outline: 3px solid var(--green-brand); outline-offset: 2px; }
 
     .modal__banner { position: relative; flex: 0 0 auto; height: 14rem; }
     @media (min-width: 640px) { .modal__banner { height: 17rem; } }
@@ -368,20 +372,20 @@
     .modal__title {
       margin: 0;
       padding-right: 2.5rem;
-      color: var(--white);
+      color: #0f1b2b;
       font-size: 1.7rem;
       font-weight: 600;
       line-height: 1.2;
       letter-spacing: -.6px;
     }
-    .modal__tagline { margin: .4rem 0 0; font-size: 1.05rem; font-weight: 400; color: var(--green); }
+    .modal__tagline { margin: .4rem 0 0; font-size: 1.05rem; font-weight: 400; color: var(--green-brand); }
 
     /* Tabs: Overview / 3D */
     .tabs {
       display: flex;
       gap: .25rem;
       margin-top: 1.25rem;
-      border-bottom: 1px solid var(--line);
+      border-bottom: 1px solid #e2e8f0;
     }
     .tab {
       margin-bottom: -1px;
@@ -389,15 +393,15 @@
       border: 0;
       border-bottom: 2px solid transparent;
       background: none;
-      color: var(--text-mute);
+      color: #64748b;
       font: inherit;
       font-size: .875rem;
       font-weight: 600;
       cursor: pointer;
     }
-    .tab:hover { color: var(--white); }
-    .tab[aria-selected="true"] { color: var(--green); border-bottom-color: var(--green); }
-    .tab:focus-visible { outline: 3px solid var(--green); outline-offset: -3px; border-radius: .4rem; }
+    .tab:hover { color: #0f1b2b; }
+    .tab[aria-selected="true"] { color: var(--green-brand); border-bottom-color: var(--green-brand); }
+    .tab:focus-visible { outline: 3px solid var(--green-brand); outline-offset: -3px; border-radius: .4rem; }
 
     .panel { margin-top: 1.25rem; }
 
@@ -405,35 +409,35 @@
     .modal__section:first-child { margin-top: 0; }
     .modal__section h3 {
       margin: 0;
-      color: var(--green-soft);
+      color: var(--green-brand);
       font-size: .72rem;
       font-weight: 600;
       letter-spacing: 2px;
       text-transform: uppercase;
     }
-    .modal__section p { margin: .6rem 0 0; line-height: 1.8; white-space: pre-line; color: var(--text-soft); }
+    .modal__section p { margin: .6rem 0 0; line-height: 1.8; white-space: pre-line; color: #334155; }
 
     /* Προσβασιμότητα: κείμενο σε πράσινο πλαίσιο */
     .modal__section--access {
       padding: 1.1rem 1.25rem 1.25rem;
       border-radius: 1rem;
-      background: rgba(21, 128, 61, .14);
-      border: 1px solid rgba(134, 201, 158, .30);
+      background: #f0fdf4;
+      border: 1px solid rgba(21, 128, 61, .22);
       box-shadow: inset 4px 0 0 var(--green-brand);
     }
-    .modal__section--access h3 { color: var(--green); }
-    .modal__section--access p { color: var(--text); }
+    .modal__section--access h3 { color: var(--green-brand); }
+    .modal__section--access p { color: #14532d; }
 
     .link-inline {
       display: inline-block;
       margin-top: .5rem;
       font-size: .875rem;
       font-weight: 600;
-      color: var(--green);
+      color: var(--green-brand);
     }
     .link-inline, .modal__newtab { text-decoration: none; }
-    .link-inline:hover, .modal__newtab:hover { color: var(--white); text-decoration: underline; text-underline-offset: 3px; }
-    .link-inline:focus-visible, .modal__newtab:focus-visible { outline: 3px solid var(--green); outline-offset: 3px; border-radius: .25rem; }
+    .link-inline:hover, .modal__newtab:hover { color: #0f1b2b; text-decoration: underline; text-underline-offset: 3px; }
+    .link-inline:focus-visible, .modal__newtab:focus-visible { outline: 3px solid var(--green-brand); outline-offset: 3px; border-radius: .25rem; }
 
     .btn-link {
       display: inline-block;
@@ -447,9 +451,9 @@
       text-decoration: none;
       transition: background .2s ease;
     }
-    .btn-link:hover { background: #16a34a; }
-    .btn-link:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
-    .modal__empty { margin: 0; color: var(--text-mute); }
+    .btn-link:hover { background: #166534; }
+    .btn-link:focus-visible { outline: 3px solid var(--green-brand); outline-offset: 2px; }
+    .modal__empty { margin: 0; color: #64748b; }
 
     /* ==================================================================== */
     /*  360° ΠΕΡΙΟΧΗ (κεντρικό Pannellum)                                   */
@@ -564,101 +568,46 @@
     .pnlm-container .c4a-pop,
     .pnlm-container .c4a-pop * { box-sizing: border-box; }
 
+    /* Απλό, στρογγυλό information sign ⓘ — όχι πλακέτα. */
     .c4a-sign {
       position: relative;
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: .3rem;
-      width: clamp(4.6rem, 7.2vw, 5.9rem);
-      min-height: clamp(5.6rem, 9vw, 7rem);
-      padding: .7rem .55rem .6rem;
-      border: 1px solid rgba(134, 201, 158, .38);
-      border-radius: .85rem;
-      background:
-        linear-gradient(165deg, rgba(20, 36, 56, .93), rgba(9, 18, 30, .90));
-      box-shadow: 0 12px 30px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .09);
-      backdrop-filter: blur(7px);
-      -webkit-backdrop-filter: blur(7px);
-      color: var(--white);
+      width: 3.25rem;
+      height: 3.25rem;
+      padding: 0;
+      border: 1.5px solid rgba(21, 128, 61, .55);
+      border-radius: 50%;
+      background: rgba(255, 255, 255, .94);
+      color: var(--green-brand);
       font-family: 'Segoe UI', Roboto, Arial, sans-serif;
-      font-size: 1rem;
       cursor: pointer;
+      box-shadow: 0 8px 22px rgba(0, 0, 0, .28), 0 0 0 4px rgba(255, 255, 255, .16);
       -webkit-tap-highlight-color: transparent;
-      transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
-      animation: c4a-sign-in .38s ease-out both;
+      transition: transform .2s ease, box-shadow .2s ease, background .2s ease, color .2s ease, border-color .2s ease;
+      animation: c4a-sign-in .3s ease-out;
     }
-    .c4a-sign::before {
-      content: "";
-      position: absolute;
-      inset: 0 0 auto 0;
-      height: 3px;
-      border-radius: .85rem .85rem 0 0;
-      background: linear-gradient(90deg, var(--blue), #1c6a8a 55%, var(--green-brand));
-      opacity: .9;
-    }
-    .c4a-sign::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      border-radius: inherit;
-      background: radial-gradient(120% 90% at 50% 0%, rgba(134, 201, 158, .16), transparent 60%);
-      opacity: 0;
-      transition: opacity .22s ease;
-      pointer-events: none;
-    }
+    .c4a-sign svg { display: block; width: 1.5rem; height: 1.5rem; }
     .c4a-sign:hover,
     .c4a-sign:focus-visible {
-      transform: translateY(-3px);
-      border-color: rgba(134, 201, 158, .8);
-      box-shadow: 0 18px 38px rgba(0, 0, 0, .55), 0 0 0 1px rgba(134, 201, 158, .25);
+      transform: scale(1.08);
+      background: #ffffff;
+      border-color: var(--green-brand);
+      color: var(--green-brand);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, .32), 0 0 0 5px rgba(21, 128, 61, .18);
       outline: none;
     }
-    .c4a-sign:hover::after,
-    .c4a-sign:focus-visible::after,
-    .c4a-sign.is-active::after { opacity: 1; }
-    .c4a-sign:active { transform: translateY(-1px) scale(.985); }
+    .c4a-sign:active { transform: scale(.98); }
     .c4a-sign.is-active {
-      border-color: var(--green);
-      box-shadow: 0 18px 38px rgba(0, 0, 0, .55), 0 0 0 2px rgba(134, 201, 158, .35);
-    }
-
-    .c4a-sign__glyph {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 1.55rem;
-      height: 1.55rem;
-      color: var(--green);
-    }
-    .c4a-sign__glyph svg { width: 100%; height: 100%; display: block; }
-
-    .c4a-sign__direction {
-      font-size: .82rem;
-      font-weight: 600;
-      letter-spacing: -.1px;
-      line-height: 1.15;
-      text-align: center;
-      text-shadow: 0 1px 2px rgba(0, 0, 0, .4);
-    }
-    .c4a-sign__caption {
-      font-size: .53rem;
-      font-weight: 600;
-      letter-spacing: .12em;
-      text-transform: uppercase;
-      color: rgba(198, 213, 225, .72);
-      line-height: 1.1;
-    }
-    .c4a-sign__hint {
-      font-size: .58rem;
-      letter-spacing: .02em;
-      color: rgba(134, 201, 158, .85);
-      line-height: 1.1;
+      background: var(--green-brand);
+      border-color: var(--green-brand);
+      color: #ffffff;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, .34), 0 0 0 5px rgba(21, 128, 61, .28);
     }
     @keyframes c4a-sign-in {
-      from { opacity: 0; transform: translateY(6px) scale(.96); }
-      to { opacity: 1; transform: none; }
+      from { opacity: 0; }
+      to { opacity: 1; }
     }
 
     /* ------------------- Παράθυρο πληροφοριών (in-viewer) ---------------- */
@@ -675,13 +624,13 @@
       width: min(32rem, calc(100% - 1.5rem));
       max-height: min(58%, 22rem);
       overflow: hidden;
-      border: 1px solid rgba(134, 201, 158, .32);
+      border: 1px solid rgba(21, 128, 61, .28);
       border-radius: 1rem;
-      background: rgba(9, 17, 28, .95);
+      background: #ffffff;
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
-      box-shadow: 0 24px 48px rgba(0, 0, 0, .6);
-      color: var(--text);
+      box-shadow: 0 24px 48px rgba(4, 9, 16, .35);
+      color: #1e293b;
       font-family: 'Segoe UI', Roboto, Arial, sans-serif;
       animation: c4a-pop-in .26s ease-out both;
     }
@@ -695,8 +644,8 @@
       align-items: center;
       gap: .75rem;
       padding: .8rem 1rem .7rem 1.05rem;
-      border-bottom: 1px solid rgba(255, 255, 255, .08);
-      background: linear-gradient(90deg, rgba(29, 78, 216, .18), rgba(21, 128, 61, .12));
+      border-bottom: 1px solid rgba(21, 128, 61, .14);
+      background: linear-gradient(90deg, rgba(21, 128, 61, .09), rgba(134, 201, 158, .14));
       flex: 0 0 auto;
     }
     .c4a-pop__label {
@@ -706,7 +655,7 @@
       font-weight: 600;
       letter-spacing: .14em;
       text-transform: uppercase;
-      color: var(--green);
+      color: var(--green-brand);
     }
     .c4a-pop__close {
       flex: 0 0 auto;
@@ -716,18 +665,18 @@
       width: 2.25rem;
       height: 2.25rem;
       margin: -.25rem -.25rem -.25rem 0;
-      border: 1px solid rgba(255, 255, 255, .18);
+      border: 1px solid rgba(15, 27, 43, .14);
       border-radius: 50%;
-      background: rgba(255, 255, 255, .06);
-      color: var(--white);
+      background: rgba(15, 27, 43, .04);
+      color: #0f1b2b;
       font: inherit;
       font-size: 1.15rem;
       line-height: 1;
       cursor: pointer;
-      transition: background .18s ease, border-color .18s ease;
+      transition: background .18s ease, border-color .18s ease, color .18s ease;
     }
-    .c4a-pop__close:hover { background: rgba(21, 128, 61, .75); border-color: rgba(134, 201, 158, .5); }
-    .c4a-pop__close:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
+    .c4a-pop__close:hover { background: var(--green-brand); border-color: var(--green-brand); color: #fff; }
+    .c4a-pop__close:focus-visible { outline: 3px solid var(--green-brand); outline-offset: 2px; }
 
     .c4a-pop__body {
       flex: 1 1 auto;
@@ -736,7 +685,7 @@
       padding: .95rem 1.15rem 1.15rem;
       font-size: .925rem;
       line-height: 1.7;
-      color: var(--text);
+      color: #1e293b;
       white-space: pre-line;
       overflow-wrap: anywhere;
       user-select: text;
@@ -755,7 +704,7 @@
       margin-top: .8rem;
       font-size: .82rem;
       font-weight: 600;
-      color: var(--green);
+      color: var(--green-brand);
     }
     .modal--immersive .modal__newtab { flex: 0 0 auto; }
 
@@ -763,16 +712,8 @@
       .wall__title { letter-spacing: -.6px; }
       .card { flex-basis: 19rem; width: 19rem; }
       .modal--expanded .modal__dialog { border-radius: 0; }
-      .c4a-sign {
-        width: 4.3rem;
-        min-height: 5.2rem;
-        gap: .22rem;
-        padding: .55rem .4rem .5rem;
-      }
-      .c4a-sign__glyph { width: 1.3rem; height: 1.3rem; }
-      .c4a-sign__direction { font-size: .72rem; }
-      .c4a-sign__caption { font-size: .48rem; }
-      .c4a-sign__hint { display: none; }
+      .c4a-sign { width: 2.9rem; height: 2.9rem; }
+      .c4a-sign svg { width: 1.35rem; height: 1.35rem; }
       .c4a-pop { max-height: 52%; }
       .c4a-pop__body { font-size: .875rem; }
     }
