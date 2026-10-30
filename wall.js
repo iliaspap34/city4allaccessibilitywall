@@ -73,7 +73,14 @@
     targetOrigin: "",
     // Προαιρετική λίστα με αποδεκτά origins για εισερχόμενα μηνύματα.
     // Αν είναι κενή, γίνεται έλεγχος με το targetOrigin.
-    allowedOrigins: []
+    allowedOrigins: [],
+    // Αν η γονική σελίδα ΔΕΝ υποστηρίζει το postMessage expansion (δεν απάντησε
+    // "ready"), ο Τοίχος ζητά native fullscreen για το iframe του, ώστε η κάρτα
+    // να πιάνει όλη την οθόνη χωρίς να φαίνεται τίποτα πίσω. Απαιτεί
+    // allow="fullscreen" / allowfullscreen στο iframe.
+    autoFullscreen: true,
+    parentSupportsExpand: false,
+    nativeFullscreen: false
   };
 
   var PLACEHOLDER_SVG =
@@ -275,6 +282,9 @@
             name: String(a.name || ""),
             size: Number(a.size) || 0,
             contentType: String(a.contentType || ""),
+            // Το Survey123 σημαίνει την πανοραμική εικόνα με keyword,
+            // π.χ. "_360_image". Είναι ο πιο αξιόπιστος δείκτης.
+            keywords: String(a.keywords || ""),
             url: withToken(base + "/" + a.id)
           };
         });
@@ -296,17 +306,18 @@
 
   // Επιλέγει ΜΟΝΟ το attachment της πανοραμικής εικόνας αυτού του record.
   function pickPanorama(attachments, rawValue) {
-    if (!attachments || !attachments.length) return null;
-
     var value = attachmentValue(rawValue);
 
     // 1) Το πεδίο περιέχει έτοιμο URL (παλιά δεδομένα / hosted layer).
+    //    Δεν χρειάζεται attachment γι' αυτό.
     if (value && /^https?:\/\//i.test(value)) {
       var direct = normalizeUrl(value);
       if (direct) {
         return { id: "external", name: "360", size: 0, contentType: "image/*", url: withToken(direct) };
       }
     }
+
+    if (!attachments || !attachments.length) return null;
 
     // 2) Το πεδίο περιέχει το όνομα του αρχείου που ανέβηκε.
     if (value) {
@@ -323,9 +334,11 @@
       if (byPartial) return byPartial;
     }
 
-    // 3) Το όνομα του attachment δηλώνει πανοράμα.
+    // 3) Το Survey123 keyword ή το όνομα του attachment δηλώνει πανοράμα.
     var byKeyword = attachments.find(function (a) {
-      return /(^|[^a-z])(360|pano|panorama|equirect|photosphere|sphere)([^a-z]|$)/i.test(a.name);
+      return /(^|[^a-z0-9])(360[\s_-]?(image|photo|pano)|pano|panorama|equirect|photosphere|sphere)([^a-z0-9]|$)/i.test(
+        a.keywords + " " + a.name
+      );
     });
     if (byKeyword) return byKeyword;
 
@@ -392,6 +405,14 @@
         var location = findLocation(attrs);
         var coords = readCoords(feature.geometry);
 
+        // Εφεδρικός υποψήφιος, όταν το πεδίο 360image δεν υπάρχει/είναι κενό:
+        // η μεγαλύτερη εικόνα. Επιβεβαιώνεται ως πανοραμική μόνο αν ο λόγος
+        // διαστάσεων είναι ~2:1 (βλ. isEquirectangular).
+        var panoGuess = "";
+        if (!panoAttachment && attachments.length) {
+          panoGuess = attachments.slice().sort(function (a, b) { return b.size - a.size; })[0].url;
+        }
+
         return {
           id: objectId,
           name: pick(attrs, FIELD_NAMES.name),
@@ -403,7 +424,10 @@
           location: location,
           mapUrl: buildMapUrl(location, coords),
           images: photos,
-          pano: panoAttachment ? { url: panoAttachment.url, hotspots: hotspots } : null
+          pano: panoAttachment ? { url: panoAttachment.url, hotspots: hotspots } : null,
+          // Τα κείμενα ισχύουν και όταν το πανόραμα βρεθεί εφεδρικά.
+          panoHotspots: hotspots,
+          panoGuess: panoGuess
         };
       })
     );
@@ -763,7 +787,10 @@
         if (done) return;
         done = true;
         clearTimeout(timer);
-        resolve();
+        resolve({
+          width: img.naturalWidth || img.width || 0,
+          height: img.naturalHeight || img.height || 0
+        });
       };
       img.onerror = function () {
         if (done) return;
@@ -819,8 +846,15 @@
     hotspotDiv.appendChild(sign);
   }
 
-  function buildHotspots(business) {
-    return (business.pano.hotspots || []).map(function (hs) {
+  // Μια ισοδύναμη (equirectangular) πανοραμική εικόνα έχει λόγο ~2:1.
+  function isEquirectangular(dim) {
+    if (!dim || !dim.width || !dim.height) return true; // άγνωστες διαστάσεις: δεν μπλοκάρουμε
+    var ratio = dim.width / dim.height;
+    return ratio >= 1.85 && ratio <= 2.15;
+  }
+
+  function buildHotspots(pano) {
+    return (pano.hotspots || []).map(function (hs) {
       return {
         id: "c4a-sign-" + hs.index,
         pitch: hs.pitch,
@@ -915,13 +949,13 @@
 
   /* --- Δημιουργία / επαναχρήση του viewer -------------------------------- */
 
-  function buildViewer(business, token) {
+  function buildViewer(pano, token) {
     if (token !== viewerToken) return;
 
     try {
       viewer = window.pannellum.viewer(panoHost, {
-        type: "equirect",
-        panorama: business.pano.url,
+        type: "equirectangular",
+        panorama: pano.url,
         autoLoad: true,
         compass: false,
         showZoomCtrl: true,
@@ -938,7 +972,7 @@
           zoomIn: "Μεγέθυνση",
           zoomOut: "Σμίκρυνση"
         },
-        hotSpots: buildHotspots(business)
+        hotSpots: buildHotspots(pano)
       });
     } catch (e) {
       destroyViewer();
@@ -951,8 +985,20 @@
       return;
     }
 
-    panoHotspots = (business.pano.hotspots || []).slice();
-    installPopup(viewer.getContainer());
+    panoHotspots = (pano.hotspots || []).slice();
+
+    var container = viewer.getContainer();
+    if (!container) {
+      destroyViewer();
+      showPanoState(
+        "error",
+        "Δεν φορτώθηκε ο 360° χώρος",
+        "Η προβολή δεν μπόρεσε να ξεκινήσει. Δοκιμάστε ξανά.",
+        true
+      );
+      return;
+    }
+    installPopup(container);
 
     var loaded = false;
     var loadTimer = setTimeout(function () {
@@ -989,11 +1035,11 @@
     } catch (e) { /* παλιές εκδόσεις Pannellum χωρίς event */ }
   }
 
-  function openPanorama(business) {
+  function openPanorama(pano, tentative) {
     var token = ++viewerToken;
     destroyViewer();
 
-    if (!business || !business.pano || !business.pano.url) {
+    if (!pano || !pano.url) {
       showPanoState(
         "empty",
         "Δεν υπάρχει 360° χώρος",
@@ -1008,11 +1054,22 @@
     ensurePannellum()
       .then(function () {
         if (token !== viewerToken) return null;
-        return preloadImage(business.pano.url);
+        return preloadImage(pano.url);
       })
-      .then(function () {
+      .then(function (dim) {
         if (token !== viewerToken) return;
-        buildViewer(business, token);
+        if (tentative && !isEquirectangular(dim)) {
+          // Η μεγαλύτερη εικόνα δεν είναι πανοραμική 2:1 — δεν την προβάλλουμε.
+          destroyViewer();
+          showPanoState(
+            "empty",
+            "Δεν υπάρχει 360° χώρος",
+            "Η επιχείρηση δεν έχει ακόμα διαθέσιμη πανοραμική εικόνα 360°.",
+            false
+          );
+          return;
+        }
+        buildViewer(pano, token);
       })
       .catch(function (err) {
         if (token !== viewerToken) return;
@@ -1103,7 +1160,11 @@
     }
 
     if (business.pano) {
-      openPanorama(business);
+      openPanorama(business.pano, false);
+    } else if (business.panoGuess) {
+      // Εφεδρικός έλεγχος: το πεδίο 360image λείπει, αλλά ίσως η πανοραμική
+      // εικόνα είναι το μεγαλύτερο attachment. Επιβεβαιώνεται πριν προβληθεί.
+      openPanorama({ url: business.panoGuess, hotspots: business.panoHotspots || [] }, true);
     } else {
       destroyViewer();
       showPanoState(
@@ -1138,9 +1199,11 @@
   }
 
   tabInfo.addEventListener("click", function () {
+    if (currentTab === "info") return;
     selectTab("info", false);
   });
   tab3d.addEventListener("click", function () {
+    if (currentTab === "3d") return; // ίδια καρτέλα: μη ξαναδημιουργείς viewer
     selectTab("3d", false);
   });
   tabsEl.addEventListener("keydown", function (e) {
@@ -1169,10 +1232,16 @@
     return "*";
   }
 
+  // Ελέγχει το origin των μηνυμάτων που έρχονται από τη γονική σελίδα.
+  // Αν το origin της γονικής σελίδας δεν είναι γνωστό (π.χ. έχει κρύψει το
+  // referrer), δεχόμαστε μόνο same-origin μηνύματα — ποτέ «άγνωστο» origin.
   function originAllowed(origin) {
     if (EMBED.allowedOrigins.length) return EMBED.allowedOrigins.indexOf(origin) !== -1;
     var target = parentTargetOrigin();
-    return target === "*" ? true : origin === target;
+    if (target === "*") {
+      try { return origin === window.location.origin; } catch (e) { return false; }
+    }
+    return origin === target;
   }
 
   function postToParent(type) {
@@ -1185,15 +1254,49 @@
     } catch (e) { /* αγνοείται */ }
   }
 
+  // Fallback: native fullscreen του iframe, όταν η γονική σελίδα δεν έχει
+  // ενσωματώσει το expansion code. Καλείται ΜΕΣΑ στο κλικ (user gesture),
+  // αλλιώς ο browser απορρίπτει το αίτημα.
+  function requestNativeFullscreen() {
+    if (!EMBED.autoFullscreen) return;
+    if (!isEmbedded() || EMBED.parentSupportsExpand) return;
+    if (!document.fullscreenEnabled) return;
+    if (document.fullscreenElement || document.webkitFullscreenElement) return;
+    var el = document.documentElement;
+    try {
+      var result = el.requestFullscreen ? el.requestFullscreen() : null;
+      if (result && typeof result.catch === "function") result.catch(function () {});
+      EMBED.nativeFullscreen = true;
+    } catch (e) { /* ο browser το απέρριψε — μένει το modal μέσα στο iframe */ }
+  }
+
+  function exitNativeFullscreenIfOurs() {
+    if (!EMBED.nativeFullscreen) return;
+    EMBED.nativeFullscreen = false;
+    try {
+      if (document.fullscreenElement === document.documentElement && document.exitFullscreen) {
+        var result = document.exitFullscreen();
+        if (result && typeof result.catch === "function") result.catch(function () {});
+      }
+    } catch (e) { /* αγνοείται */ }
+  }
+
   window.addEventListener("message", function (e) {
     if (!e.data || e.data.source !== EMBED.parentSource) return;
     if (!originAllowed(e.origin)) return;
-    if (e.data.type === "expanded") {
+    if (e.data.type === "ready") {
+      // Η γονική σελίδα έχει το expansion code (parent-embed.html).
+      EMBED.parentSupportsExpand = true;
+      document.documentElement.classList.add("has-parent-expand");
+    } else if (e.data.type === "expanded") {
       document.documentElement.classList.add("is-embedded-expanded");
       resizeViewerSoon();
     } else if (e.data.type === "collapsed") {
       document.documentElement.classList.remove("is-embedded-expanded");
       resizeViewerSoon();
+    } else if (e.data.type === "request-close") {
+      // Προαιρετικό: η γονική σελίδα ζητά κλείσιμο (π.χ. Escape στη σελίδα).
+      closeModal();
     }
   });
 
@@ -1271,7 +1374,9 @@
     document.body.classList.add("modal-open");
 
     // Ζητά από τη γονική σελίδα να μεγαλώσει το iframe σε όλο το viewport.
+    // Αν δεν υπάρχει τέτοια ενσωμάτωση, ζητά native fullscreen (idle fallback).
     postToParent("expand");
+    requestNativeFullscreen();
 
     selectTab("info", false);
     closeBtn.focus();
@@ -1281,6 +1386,7 @@
     if (modal.hidden) return;
 
     // Αν ο χρήστης είναι σε native fullscreen, βγαίνουμε πρώτα από αυτό.
+    exitNativeFullscreenIfOurs();
     exitNativeFullscreen();
 
     stop3d();
@@ -1318,6 +1424,17 @@
   /* ------------------------------------------------------------------------ */
   /*  ΕΚΚΙΝΗΣΗ                                                                */
   /* ------------------------------------------------------------------------ */
+
+  // Ρωτάει τη γονική σελίδα αν υποστηρίζει expansion (parent-embed.html).
+  postToParent("handshake");
+
+  ["fullscreenchange", "webkitfullscreenchange"].forEach(function (evt) {
+    document.addEventListener(evt, function () {
+      if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        EMBED.nativeFullscreen = false;
+      }
+    });
+  });
 
   loadWall();
 })();
