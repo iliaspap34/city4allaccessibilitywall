@@ -277,10 +277,9 @@
       align-items: center;
       justify-content: center;
       padding: .75rem;
-      background: rgba(4, 9, 16, .80);
-      backdrop-filter: blur(4px);
+      /* Αδιαφανές φόντο: πίσω από την κάρτα δεν φαίνεται καθόλου ο Τοίχος. */
+      background: #081120;
     }
-    @media (min-width: 640px) { .modal { padding: 1.5rem; } }
 
     .modal__dialog {
       position: relative;
@@ -297,7 +296,7 @@
       box-shadow: 0 25px 60px rgba(0, 0, 0, .55);
     }
 
-    /* ---- Expanded (parent iframe έγινε viewport-sized) / immersive 3D ---- */
+    /* ---- Expanded: η κάρτα πιάνει ΟΛΟ το διαθέσιμο viewport ---- */
     .modal--expanded { padding: 0; }
     .modal--expanded .modal__dialog {
       max-width: 100%;
@@ -306,15 +305,10 @@
       border-radius: 0;
       border: 0;
     }
-    @media (min-width: 992px) {
-      .modal--expanded { padding: 1.25rem; }
-      .modal--expanded .modal__dialog {
-        max-width: 74rem;
-        height: calc(100% - 1rem);
-        border-radius: 1.5rem;
-        border: 1px solid var(--line);
-      }
-    }
+    /* Το κείμενο της επισκόπησης δεν απλώνεται σε υπερβολικά μακριές γραμμές. */
+    .modal--expanded #c4a-panel-info,
+    .modal--expanded .modal__title,
+    .modal--expanded .modal__tagline { max-width: 62rem; }
     .modal--immersive .modal__banner { display: none; }
     .modal--immersive .modal__tagline { display: none; }
     .modal--immersive .modal__scroll {
@@ -552,9 +546,9 @@
     .pano__retry:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
 
     /* ------------------- Σήματα πληροφοριών (hotspots) ------------------- */
-    /* Το Pannellum βάζει το cssClass πάνω στο hotspot div (και το .pnlm-sprite). */
-    .pnlm-hotspot.c4a-hotspot,
-    .c4a-hotspot.pnlm-sprite {
+    /* Όταν δίνεται cssClass, το Pannellum δίνει στο hotspot div μόνο την κλάση
+       .pnlm-hotspot-base + cssClass (όχι .pnlm-hotspot / .pnlm-sprite). */
+    .pnlm-hotspot-base.c4a-hotspot {
       width: auto;
       height: auto;
       background-image: none !important;
@@ -562,6 +556,13 @@
       outline: none;
       z-index: 12;
     }
+
+    /* Το Pannellum ορίζει .pnlm-container * { box-sizing: content-box } —
+       χρειάζεται μεγαλύτερη ειδικότητα για να κρατήσουμε border-box. */
+    .pnlm-container .c4a-sign,
+    .pnlm-container .c4a-sign *,
+    .pnlm-container .c4a-pop,
+    .pnlm-container .c4a-pop * { box-sizing: border-box; }
 
     .c4a-sign {
       position: relative;
@@ -581,7 +582,8 @@
       backdrop-filter: blur(7px);
       -webkit-backdrop-filter: blur(7px);
       color: var(--white);
-      font: inherit;
+      font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+      font-size: 1rem;
       cursor: pointer;
       -webkit-tap-highlight-color: transparent;
       transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
@@ -680,6 +682,7 @@
       -webkit-backdrop-filter: blur(10px);
       box-shadow: 0 24px 48px rgba(0, 0, 0, .6);
       color: var(--text);
+      font-family: 'Segoe UI', Roboto, Arial, sans-serif;
       animation: c4a-pop-in .26s ease-out both;
     }
     @media (min-width: 700px) {
@@ -855,6 +858,6 @@
     </div>
   </div>
 
-  <script src="wall.js?v=5" defer></script>
+  <script src="wall.js?v=6" defer></script>
 </body>
 </html>
