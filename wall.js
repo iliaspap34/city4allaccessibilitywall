@@ -591,14 +591,199 @@
     return card;
   }
 
+  /* ------------------------------------------------------------------------ */
+  /*  ΣΕΛΙΔΕΣ (3 σειρές × στήλες, βέλη για οριζόντια πλοήγηση)                  */
+  /* ------------------------------------------------------------------------ */
+
+  var viewportEl = byId("c4a-viewport");
+  var prevBtn = byId("c4a-prev");
+  var nextBtn = byId("c4a-next");
+  var dotsEl = byId("c4a-dots");
+
+  var ROWS_PER_PAGE = 3;
+  var wallBusinesses = [];
+  var pageIndex = 0;
+  var pageCount = 1;
+  var pageCols = 3;
+  var pageCapacity = ROWS_PER_PAGE * 3;
+  var resizeTimer = null;
+
+  function columnsForWidth(width) {
+    var w = Number(width) || 0;
+    if (w <= 0) return 3; // πριν μετρηθεί το layout
+    if (w >= 920) return 3;
+    if (w >= 600) return 2;
+    return 1;
+  }
+
+  function measureColumns() {
+    return columnsForWidth(viewportEl ? viewportEl.clientWidth : 0);
+  }
+
+  // Προσαρμόζει το ύψος των 3 σειρών στο διαθέσιμο ύψος (π.χ. iframe 900px),
+  // ώστε μια σελίδα να χωράει ακριβώς χωρίς κατακόρυφο scroll.
+  function fitRows() {
+    if (!viewportEl) return;
+    var rows = ROWS_PER_PAGE;
+    var gap = 16;
+    var top = viewportEl.getBoundingClientRect().top;
+    if (top < 0) top = 0;
+    var dotsH = dotsEl && !dotsEl.hidden ? dotsEl.offsetHeight + 14 : 0;
+    var available = (window.innerHeight || 900) - top - dotsH - 16;
+    var rowH = Math.floor((available - gap * (rows - 1)) / rows);
+    rowH = Math.max(150, Math.min(rowH, 230));
+    document.documentElement.style.setProperty("--row-h", rowH + "px");
+  }
+
+  function buildPages(resetPage) {
+    clearList(timers);
+
+    var nodes = wallBusinesses.map(function (business, i) {
+      return createBusinessCard(business, i);
+    });
+    nodes.push(createAddCard()); // πάντα το τελευταίο block
+
+    pageCols = measureColumns();
+    pageCapacity = pageCols * ROWS_PER_PAGE;
+    pageCount = Math.max(1, Math.ceil(nodes.length / pageCapacity));
+
+    if (resetPage) pageIndex = 0;
+    pageIndex = Math.min(Math.max(pageIndex, 0), pageCount - 1);
+
+    var frag = document.createDocumentFragment();
+    for (var p = 0; p < pageCount; p++) {
+      var page = make("div", "wall__page");
+      page.setAttribute("role", "group");
+      page.setAttribute("aria-label", "Σελίδα " + (p + 1) + " από " + pageCount);
+      nodes.slice(p * pageCapacity, (p + 1) * pageCapacity).forEach(function (node) {
+        page.appendChild(node);
+      });
+      frag.appendChild(page);
+    }
+
+    carousel.style.setProperty("--cols", String(pageCols));
+    carousel.replaceChildren(frag);
+
+    applyPage();
+    buildDots();
+    updateArrows();
+    fitRows();
+    carousel.removeAttribute("aria-busy");
+  }
+
+  function applyPage() {
+    carousel.style.transform = "translateX(" + (-pageIndex * 100) + "%)";
+    Array.prototype.forEach.call(carousel.children, function (page, i) {
+      if (i === pageIndex) {
+        page.removeAttribute("aria-hidden");
+        page.inert = false;
+      } else {
+        page.setAttribute("aria-hidden", "true");
+        page.inert = true;
+      }
+    });
+  }
+
+  function buildDots() {
+    if (!dotsEl) return;
+    if (pageCount <= 1) {
+      dotsEl.hidden = true;
+      dotsEl.replaceChildren();
+      return;
+    }
+
+    var frag = document.createDocumentFragment();
+    for (var i = 0; i < pageCount; i++) {
+      (function (index) {
+        var dot = make("button", "wall__dot");
+        dot.type = "button";
+        dot.setAttribute("role", "tab");
+        dot.setAttribute("aria-label", "Σελίδα " + (index + 1) + " από " + pageCount);
+        dot.setAttribute("aria-current", index === pageIndex ? "true" : "false");
+        dot.addEventListener("click", function () { goToPage(index); });
+        frag.appendChild(dot);
+      })(i);
+    }
+    dotsEl.replaceChildren(frag);
+    dotsEl.hidden = false;
+  }
+
+  function updateArrows() {
+    var many = pageCount > 1;
+    prevBtn.hidden = !many;
+    nextBtn.hidden = !many;
+    prevBtn.disabled = pageIndex === 0;
+    nextBtn.disabled = pageIndex === pageCount - 1;
+  }
+
+  function goToPage(index) {
+    var next = Math.min(Math.max(index, 0), pageCount - 1);
+    if (next === pageIndex) return;
+    pageIndex = next;
+    applyPage();
+    buildDots();
+    updateArrows();
+  }
+
+  prevBtn.addEventListener("click", function () { goToPage(pageIndex - 1); });
+  nextBtn.addEventListener("click", function () { goToPage(pageIndex + 1); });
+
+  if (viewportEl) {
+    viewportEl.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowLeft") { e.preventDefault(); goToPage(pageIndex - 1); }
+      else if (e.key === "ArrowRight") { e.preventDefault(); goToPage(pageIndex + 1); }
+    });
+  }
+
+  function onWallResize() {
+    if (resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () {
+      var cols = measureColumns();
+      if (cols === pageCols) return;
+      var firstItem = pageIndex * pageCapacity;
+      var newCapacity = cols * ROWS_PER_PAGE;
+      pageIndex = Math.floor(firstItem / newCapacity);
+      buildPages(false);
+      fitRows();
+    }, 160);
+  }
+
+  if (window.ResizeObserver && viewportEl) {
+    new ResizeObserver(onWallResize).observe(viewportEl);
+  } else {
+    window.addEventListener("resize", onWallResize);
+  }
+  window.addEventListener("resize", function () {
+    // Το ύψος του iframe μπορεί να αλλάξει χωρίς αλλαγή πλάτους.
+    setTimeout(fitRows, 50);
+  });
+
+  /* ------------------------------------------------------------------------ */
+  /*  ΕΜΦΑΝΙΣΗ                                                                */
+  /* ------------------------------------------------------------------------ */
+
   function renderLoading() {
     clearList(timers);
     statusEl.hidden = true;
     statusEl.textContent = "";
     carousel.hidden = false;
     carousel.setAttribute("aria-busy", "true");
-    carousel.replaceChildren();
-    for (var i = 0; i < 4; i++) carousel.appendChild(createSkeletonCard());
+
+    pageIndex = 0;
+    pageCount = 1;
+    pageCols = measureColumns();
+    pageCapacity = pageCols * ROWS_PER_PAGE;
+    carousel.style.setProperty("--cols", String(pageCols));
+    carousel.style.transform = "translateX(0)";
+
+    prevBtn.hidden = true;
+    nextBtn.hidden = true;
+    if (dotsEl) { dotsEl.hidden = true; dotsEl.replaceChildren(); }
+
+    var page = make("div", "wall__page");
+    for (var i = 0; i < pageCapacity; i++) page.appendChild(createSkeletonCard());
+    carousel.replaceChildren(page);
+    fitRows();
   }
 
   function renderError(message) {
@@ -606,6 +791,11 @@
     carousel.replaceChildren();
     carousel.hidden = true;
     carousel.removeAttribute("aria-busy");
+    carousel.style.transform = "translateX(0)";
+
+    prevBtn.hidden = true;
+    nextBtn.hidden = true;
+    if (dotsEl) { dotsEl.hidden = true; dotsEl.replaceChildren(); }
 
     statusEl.className = "status status--error";
     statusEl.setAttribute("role", "alert");
@@ -621,10 +811,11 @@
   }
 
   function renderBusinesses(items) {
-    clearList(timers);
+    wallBusinesses = items.slice();
+    pageIndex = 0;
     carousel.hidden = false;
     carousel.removeAttribute("aria-busy");
-    carousel.replaceChildren();
+    buildPages(true);
 
     if (items.length === 0) {
       statusEl.className = "status status--empty";
@@ -635,11 +826,6 @@
       statusEl.hidden = true;
       statusEl.textContent = "";
     }
-
-    items.forEach(function (business, i) {
-      carousel.appendChild(createBusinessCard(business, i));
-    });
-    carousel.appendChild(createAddCard()); // πάντα η τελευταία κάρτα στο scroll
   }
 
   async function loadWall() {
