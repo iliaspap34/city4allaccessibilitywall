@@ -76,26 +76,89 @@
       font-weight: 400;
     }
 
-    /* ------------------------ Horizontal carousel ------------------------ */
-    .carousel {
+    /* ------------- Σελίδες: 3 σειρές × στήλες, οριζόντια πλοήγηση ------------- */
+    .wall__pager {
       display: flex;
-      gap: var(--card-gap);
-      overflow-x: auto;
-      scroll-behavior: smooth;
-      scroll-snap-type: x proximity;
-      -webkit-overflow-scrolling: touch;
-      padding: 6px 0 16px;
-      scrollbar-color: rgba(134, 201, 158, .45) transparent;
+      align-items: center;
+      gap: .9rem;
+      padding: 4px 0 0;
     }
-    .carousel::after { content: ""; flex: 0 0 1px; }
-    .carousel:focus-visible { outline: 2px solid var(--green); outline-offset: 4px; border-radius: .5rem; }
+    .wall__viewport {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      border-radius: 1rem;
+    }
+    .wall__viewport:focus-visible { outline: 2px solid var(--green-brand); outline-offset: 4px; }
+
+    .wall__track {
+      display: flex;
+      align-items: stretch;
+      transition: transform .45s cubic-bezier(.22, .61, .36, 1);
+      will-change: transform;
+    }
+    .wall__page {
+      flex: 0 0 100%;
+      display: grid;
+      grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr));
+      grid-auto-rows: var(--row-h, 12rem);
+      gap: 1rem;
+      align-content: start;
+    }
+
+    .wall__arrow {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.75rem;
+      height: 2.75rem;
+      padding: 0;
+      border: 1px solid rgba(21, 128, 61, .45);
+      border-radius: 50%;
+      background: #ffffff;
+      color: var(--green-brand);
+      box-shadow: 0 6px 18px rgba(4, 9, 16, .22);
+      cursor: pointer;
+      transition: background .2s ease, color .2s ease, border-color .2s ease, transform .2s ease;
+    }
+    .wall__arrow svg { width: 1.1rem; height: 1.1rem; display: block; }
+    .wall__arrow:hover:not(:disabled) {
+      background: var(--green-brand);
+      border-color: var(--green-brand);
+      color: #fff;
+      transform: scale(1.05);
+    }
+    .wall__arrow:focus-visible { outline: 3px solid var(--green-brand); outline-offset: 2px; }
+    .wall__arrow:disabled { opacity: .35; cursor: default; box-shadow: none; }
+
+    .wall__dots {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: .5rem;
+      margin-top: .9rem;
+    }
+    .wall__dot {
+      width: .55rem;
+      height: .55rem;
+      padding: 0;
+      border: 0;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, .30);
+      cursor: pointer;
+      transition: width .2s ease, background .2s ease;
+    }
+    .wall__dot[aria-current="true"] { width: 1.4rem; border-radius: 999px; background: var(--green); }
+    .wall__dot:hover { background: rgba(255, 255, 255, .55); }
+    .wall__dot:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
 
     /* ------------------------------- Cards ------------------------------- */
     .card {
       display: flex;
-      flex: 0 0 22rem;
-      width: 22rem;
-      height: 10rem;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
       overflow: hidden;
       padding: 0;
       border: 1px solid #e2e8f0;
@@ -157,7 +220,7 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .card__cta { font-size: .875rem; font-weight: 600; color: var(--green-brand); }
+    .card__cta { font-size: .8rem; font-weight: 600; color: var(--green-brand); white-space: nowrap; }
     .card:hover .card__cta { color: #0f1b2b; }
 
     /* --------------------- Image slideshow (fade) ------------------------ */
@@ -193,22 +256,22 @@
       flex-direction: column;
       justify-content: space-between;
       padding: 1.25rem;
-      color: var(--white);
-      border-color: transparent;
-      background: linear-gradient(135deg, var(--green-brand), #16a34a 60%, #22c55e);
-      scroll-snap-align: end;
+      color: #0f1b2b;
+      border: 1px solid rgba(21, 128, 61, .35);
+      background: #ffffff;
     }
     .card--add:hover {
-      background: linear-gradient(135deg, var(--green-brand), #16a34a 60%, #22c55e);
-      border-color: rgba(255, 255, 255, .45);
+      background: #ffffff;
+      border-color: var(--green-brand);
+      box-shadow: 0 12px 26px rgba(4, 9, 16, .26);
     }
-    .card--add:focus-visible { outline-color: #bbf7d0; }
+    .card--add:focus-visible { outline-color: var(--green-brand); }
     .card--add::before,
     .card--add::after {
       content: "";
       position: absolute;
       border-radius: 50%;
-      background: rgba(255, 255, 255, .10);
+      background: rgba(21, 128, 61, .08);
       pointer-events: none;
     }
     .card--add::before { width: 8rem; height: 8rem; right: -2rem; top: -2rem; }
@@ -218,84 +281,24 @@
       display: inline-block;
       padding: .15rem .75rem;
       border-radius: 999px;
-      background: rgba(255, 255, 255, .2);
+      background: #e8f5ee;
+      color: var(--green-brand);
       font-size: .7rem;
       font-weight: 600;
       letter-spacing: .08em;
       text-transform: uppercase;
     }
-    /* ---------------------- "Add your business" card --------------------- */
-.card--add {
-  position: relative;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 1.25rem;
-  color: #0f1b2b;
-  border: 1px solid #e2e8f0;
-  border-radius: 1rem;
-  background: #ffffff;
-  box-shadow: 0 4px 14px rgba(4, 9, 16, .18);
-  scroll-snap-align: end;
-  transition: transform .2s ease,
-              box-shadow .2s ease,
-              border-color .2s ease;
-}
+    .card--add .card__title {
+      margin-top: .6rem;
+      color: #0f1b2b;
+      white-space: normal;
+      font-size: 1.25rem;
+      font-weight: 600;
+      line-height: 1.25;
+    }
+    .card--add .card__cta,
+    .card--add:hover .card__cta { color: var(--green-brand); }
 
-.card--add:hover {
-  transform: translateY(-2px);
-  background: #ffffff;
-  border-color: rgba(21, 128, 61, .45);
-  box-shadow: 0 12px 26px rgba(4, 9, 16, .26);
-}
-
-.card--add:focus-visible {
-  outline: 3px solid var(--green-brand);
-  outline-offset: 2px;
-}
-
-/* Αφαίρεση των διακοσμητικών κύκλων του προηγούμενου design */
-.card--add::before,
-.card--add::after {
-  display: none;
-}
-
-.card--add > * {
-  position: relative;
-}
-
-.card--add .badge {
-  display: inline-block;
-  width: fit-content;
-  padding: .25rem .7rem;
-  border-radius: 999px;
-  background: #f0fdf4;
-  border: 1px solid rgba(21, 128, 61, .18);
-  color: var(--green-brand);
-  font-size: .68rem;
-  font-weight: 600;
-  letter-spacing: .07em;
-  text-transform: uppercase;
-}
-
-.card--add .card__title {
-  margin-top: .6rem;
-  color: #0f1b2b;
-  white-space: normal;
-  font-size: 1.2rem;
-  font-weight: 600;
-  line-height: 1.3;
-}
-
-.card--add .card__cta,
-.card--add:hover .card__cta {
-  color: var(--green-brand);
-  font-size: .875rem;
-  font-weight: 600;
-}
-
-.card--add:hover .card__cta {
-  color: #0f1b2b;
-}
     /* --------------------------- Loading skeleton ------------------------ */
     .card--skeleton { cursor: default; animation: pulse 1.5s ease-in-out infinite; }
     .card--skeleton:hover { transform: none; background: #fff; border-color: #e2e8f0; }
@@ -771,7 +774,30 @@
 
     @media (max-width: 600px) {
       .wall__title { letter-spacing: -.6px; }
-      .card { flex-basis: 19rem; width: 19rem; }
+      /* Τα βέλη επιπλέουν πάνω στις άκρες για να μένει πλατύ το block. */
+      .wall__pager { position: relative; gap: 0; }
+      .wall__arrow {
+        position: absolute;
+        top: 50%;
+        z-index: 4;
+        width: 2.15rem;
+        height: 2.15rem;
+        background: rgba(255, 255, 255, .94);
+        transform: translateY(-50%);
+      }
+      .wall__arrow svg { width: .95rem; height: .95rem; }
+      #c4a-prev { left: .3rem; }
+      #c4a-next { right: .3rem; }
+      .wall__arrow:hover:not(:disabled) { transform: translateY(-50%) scale(1.05); }
+      .wall__page { gap: .75rem; }
+      .wall__viewport { border-radius: .85rem; }
+
+      .card__body { padding: .8rem; }
+      .slideshow { flex: 0 0 7rem; width: 7rem; }
+      .card__title { font-size: .98rem; }
+      .card__tagline { font-size: .8rem; }
+      .card__location { font-size: .74rem; }
+      .card__cta { font-size: .74rem; }
       .modal--expanded .modal__dialog { border-radius: 0; }
       .c4a-sign { width: 2.9rem; height: 2.9rem; }
       .c4a-sign svg { width: 1.35rem; height: 1.35rem; }
@@ -780,7 +806,7 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
-      .carousel { scroll-behavior: auto; }
+      .wall__track { transition: none; }
       .card, .card--skeleton { transition: none; animation: none; }
       .c4a-sign, .c4a-pop { animation: none; transition: none; }
       .pano__spinner { animation-duration: 2.4s; }
@@ -796,7 +822,22 @@
     </header>
 
     <div id="c4a-status" class="status" hidden></div>
-    <div id="c4a-carousel" class="carousel" tabindex="0" aria-label="Προσβάσιμες επιχειρήσεις"></div>
+
+    <div class="wall__pager">
+      <button type="button" id="c4a-prev" class="wall__arrow" aria-label="Προηγούμενη σελίδα" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg>
+      </button>
+
+      <div id="c4a-viewport" class="wall__viewport" tabindex="0" aria-label="Προσβάσιμες επιχειρήσεις">
+        <div id="c4a-carousel" class="wall__track" role="group" aria-live="polite"></div>
+      </div>
+
+      <button type="button" id="c4a-next" class="wall__arrow" aria-label="Επόμενη σελίδα" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 5.5 16 12l-6.5 6.5"/></svg>
+      </button>
+    </div>
+
+    <div id="c4a-dots" class="wall__dots" role="tablist" aria-label="Σελίδες επιχειρήσεων" hidden></div>
     <noscript><p class="status status--error">Απαιτείται JavaScript για την εμφάνιση του Accessible Wall.</p></noscript>
   </main>
 
